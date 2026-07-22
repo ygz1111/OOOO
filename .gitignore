@@ -52,5 +52,5 @@ data_inspection_report.txt
 /content/
 /sample_data/
 
-# === 大文件（超过 GitHub 100MB 限制，需手动传输）===
-processed/step6_sequences.pkl
+# === 大文件通过 Git LFS 管理 ===
+# processed/step6_sequences.pkl (由 LFS 处理，不需要排除)
