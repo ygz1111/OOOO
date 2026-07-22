@@ -1,0 +1,36 @@
+﻿python : 2026-07-22 01:43:46.696916: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see s
+lightly different numerical results due to floating-point round-off errors from different computation orders. To turn t
+hem off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+所在位置 行:1 字符: 133
++ ... ncoding]::UTF8; cd D:\GitHub\OOOOOO; python check_env.py 2>&1 | Out-F ...
++                                          ~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (2026-07-22 01:4...ONEDNN_OPTS=0`.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+2026-07-22 01:43:53.584735: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly d
+ifferent numerical results due to floating-point round-off errors from different computation orders. To turn them off, 
+set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+Traceback (most recent call last):
+  File "D:\GitHub\OOOOOO\check_env.py", line 63, in <module>
+    print(f"  {fname}: {size:.1f} MB \u2713")
+UnicodeEncodeError: 'gbk' codec can't encode character '\u2713' in position 32: illegal multibyte sequence
+============================================================
+���ػ�����ⱨ��
+============================================================
+
+[ϵͳ��Ϣ]
+  ����ϵͳ: Windows 11
+  ������: AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD
+  CPU ������: 12 (�߼�) / 6 (����)
+
+[�ڴ�]
+  ���ڴ�: 13.86 GB
+  �����ڴ�: 2.68 GB
+  ʹ����: 80.6%
+
+[TensorFlow]
+  �汾: 2.20.0
+  GPU ����: 0
+    [�� GPU] ��ʹ�� CPU ѵ��
+
+[�����ļ����]

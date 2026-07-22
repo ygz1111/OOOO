@@ -1,0 +1,89 @@
+================================================================================
+文件: 2023_smd_hourly.xlsx
+文件大小: 7.34 MB
+================================================================================
+Sheet列表: ['Notes', 'ISO NE CA', 'ME', 'NH', 'VT', 'CT', 'RI', 'SEMA', 'WCMA', 'NEMA']
+
+============================================================
+--- Sheet: Notes ---
+============================================================
+形状 (行 x 列): (52, 10)
+
+列名及类型:
+  [0] 'ISO New England Public'  (dtype: object)
+  [1] 'Unnamed: 1'  (dtype: float64)
+  [2] 'Unnamed: 2'  (dtype: object)
+  [3] 'Unnamed: 3'  (dtype: float64)
+  [4] 'Unnamed: 4'  (dtype: object)
+  [5] 'Unnamed: 5'  (dtype: object)
+  [6] 'Unnamed: 6'  (dtype: object)
+  [7] 'Unnamed: 7'  (dtype: object)
+  [8] 'Unnamed: 8'  (dtype: object)
+  [9] 'Unnamed: 9'  (dtype: object)
+
+前5行:
+                                                                                                                                                                                                                                                        ISO New England Public  Unnamed: 1   Unnamed: 2  Unnamed: 3 Unnamed: 4 Unnamed: 5 Unnamed: 6 Unnamed: 7 Unnamed: 8 Unnamed: 9
+0                                                                                                                                                                                                                                                                          NaN         NaN          NaN         NaN        NaN        NaN        NaN        NaN        NaN        NaN
+1                                                                                                                                                                                                                                   Explanation of 'YYYY' SMD Hourly.xlsx File         NaN          NaN         NaN        NaN        NaN        NaN        NaN        NaN        NaN
+2                                                                                                                                                                                                                                                                          NaN         NaN          NaN         NaN        NaN        NaN        NaN        NaN        NaN        NaN
+3  The data in this file comprise hourly Day-Ahead (DA) and Real-Time (RT) demand, DA and RT locational marginal prices, weather data, system load, and regulation market clearing prices for the ISO New England Control Area (ISO NE CA) and its eight wholesale load zones.         NaN          NaN         NaN        NaN        NaN        NaN        NaN        NaN        NaN
+4                                                                                                                                                                                                                                                               Column Heading         NaN  Description         NaN        NaN        NaN        NaN        NaN        NaN        NaN
+
+后5行:
+                                                                                                               ISO New England Public  Unnamed: 1 Unnamed: 2  Unnamed: 3 Unnamed: 4 Unnamed: 5 Unnamed: 6 Unnamed: 7 Unnamed: 8 Unnamed: 9
+47                                                                                                                                NaN         NaN        NaN         NaN        NaN        NaN        NaN        NaN        NaN        NaN
+48                                                                                                       Market Analysis & Settlement         NaN        NaN         NaN        NaN        NaN        NaN        NaN        NaN        NaN
+49                                                                                                                                NaN         NaN        NaN         NaN        NaN        NaN        NaN        NaN        NaN        NaN
+50  DRP Settlement Jan 2023, Jul 2023-Nov 2023; Initial Settlement None; Not Settled None; RBA Settlement Feb 2023-Jun 2023, Dec 2023         NaN        NaN         NaN        NaN        NaN        NaN        NaN        NaN        NaN
+51                                                                           Current output and format conventions began on 9/12/2016         NaN        NaN         NaN        NaN        NaN        NaN        NaN        NaN        NaN
+
+缺失值统计 (仅显示有缺失的列):
+  ISO New England Public: 23 (44.2%)
+  Unnamed: 1: 52 (100.0%)
+  Unnamed: 2: 27 (51.9%)
+  Unnamed: 3: 52 (100.0%)
+  Unnamed: 4: 42 (80.8%)
+  Unnamed: 5: 42 (80.8%)
+  Unnamed: 6: 43 (82.7%)
+  Unnamed: 7: 44 (84.6%)
+  Unnamed: 8: 42 (80.8%)
+  Unnamed: 9: 42 (80.8%)
+
+
+============================================================
+--- Sheet: ISO NE CA ---
+============================================================
+形状 (行 x 列): (8760, 21)
+
+列名及类型:
+  [0] 'Date'  (dtype: datetime64[ns])
+  [1] 'Hr_End'  (dtype: int64)
+  [2] 'DA_Demand'  (dtype: float64)
+  [3] 'RT_Demand'  (dtype: float64)
+  [4] 'DA_LMP'  (dtype: float64)
+  [5] 'DA_EC'  (dtype: float64)
+  [6] 'DA_CC'  (dtype: float64)
+  [7] 'DA_MLC'  (dtype: float64)
+  [8] 'RT_LMP'  (dtype: float64)
+  [9] 'RT_EC'  (dtype: float64)
+  [10] 'RT_CC'  (dtype: float64)
+  [11] 'RT_MLC'  (dtype: float64)
+  [12] 'Dry_Bulb'  (dtype: int64)
+  [13] 'Dew_Point'  (dtype: int64)
+  [14] 'System_Load'  (dtype: int64)
+  [15] 'Reg_Service_Price'  (dtype: float64)
+  [16] 'Reg_Capacity_Price'  (dtype: float64)
+  [17] 'Min_5min_RSP'  (dtype: float64)
+  [18] 'Max_5min_RSP'  (dtype: float64)
+  [19] 'Min_5min_RCP'  (dtype: float64)
+  [20] 'Max_5min_RCP'  (dtype: float64)
+
+前5行:
+        Date  Hr_End  DA_Demand  RT_Demand  DA_LMP  DA_EC  DA_CC  DA_MLC  RT_LMP  RT_EC  RT_CC  RT_MLC  Dry_Bulb  Dew_Point  System_Load  Reg_Service_Price  Reg_Capacity_Price  Min_5min_RSP  Max_5min_RSP  Min_5min_RCP  Max_5min_RCP
+0 2023-01-01       1     9565.9  10288.380   31.27  31.28    0.0   -0.01   36.99  36.93   0.00    0.06        50         49        10511              0.050           24.250000          0.05          0.05         13.22         79.40
+1 2023-01-01       2     9063.3   9848.103   28.42  28.44    0.0   -0.02   33.45  33.39   0.00    0.06        50         49        10050              0.005            1.700833          0.00          0.05          0.00         13.22
+2 2023-01-01       3     9107.0   9504.486   26.81  26.83    0.0   -0.02   32.19  32.09   0.00    0.10        50         49         9718              0.000            0.000000          0.00          0.00          0.00          0.00
+3 2023-01-01       4     9056.7   9323.070   28.17  28.19    0.0   -0.02   31.89  31.75   0.01    0.13        50         49         9532              0.000            0.000000          0.00          0.00          0.00          0.00
+4 2023-01-01       5     9409.2   9295.372   29.67  29.70    0.0   -0.03   31.93  31.80   0.00    0.13        50         48         9507              0.000           33.800000          0.00          0.00          0.00         40.56
+
+后5行:
