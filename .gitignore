@@ -1,50 +1,56 @@
-# Python
+# ========================================
+# 智能电网负荷预测 - .gitignore
+# ========================================
+
+# === Python ===
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
+dist/
+build/
 *.egg
 
-# Virtual environments
+# === 虚拟环境 ===
 venv/
 env/
 .venv/
-.env
+ENV/
 
-# Jupyter Notebook
-.ipynb_checkpoints/
-
-# IDE
+# === IDE / 编辑器 ===
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# OS
+*~
 .DS_Store
 Thumbs.db
 
-# Project specific
-models/*.pt
-models/*.pth
-models/*.onnx
-models/*.pkl
+# === Jupyter Notebook ===
+.ipynb_checkpoints/
+
+# === 训练输出（每次不同，不纳入版本控制）===
 outputs/
-processed/
-datas/
+saved_models/
+*.h5
+*.weights.h5
+*.keras
+
+# === 临时文件 ===
+*.tmp
 *.log
+env_report.txt
+data_inspection_report.txt
+
+# === 压缩包 ===
+*.zip
+*.tar.gz
+*.rar
+
+# === Google Colab ===
+/content/
+/sample_data/
+
+# === 大文件（超过 GitHub 100MB 限制，需手动传输）===
+processed/step6_sequences.pkl
