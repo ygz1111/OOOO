@@ -1,0 +1,51 @@
+# ============================================================================
+# Docker 构建排除文件
+# ============================================================================
+
+# Git
+.git
+.gitignore
+*.md
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.eggs
+dist
+build
+.venv
+venv
+env
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# 测试
+realtime_api/test_*.py
+
+# 数据 (大文件，按需挂载)
+datas/
+*.xlsx
+*.pkl
+
+# 可视化 (不需要在容器中)
+visualizations/
+*.png
+
+# Docker 自身
+docker/
+docker-compose.yml
+.env
+
+# 日志
+*.log
+training.log
+
+# 其他
+Ana/
+*.appx
+ubuntu2004.appx

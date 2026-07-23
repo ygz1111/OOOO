@@ -1,0 +1,324 @@
+{
+  "dashboard": {
+    "title": "智能电网负荷预测 - 系统监控",
+    "description": "预测准确率、API性能、数据质量、模型漂移综合监控",
+    "tags": ["grid-predict", "monitoring"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "15s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "title": "预测准确率 (MAPE)",
+        "description": "平均绝对百分比误差，阈值 5%",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+        "datasource": "Prometheus",
+        "targets": [{
+          "expr": "grid_predict_mape",
+          "legendFormat": "MAPE"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 3},
+                {"color": "red", "value": 5}
+              ]
+            },
+            "unit": "%",
+            "displayName": "MAPE"
+          }
+        },
+        "options": {
+          "reduceOptions": {"calcs": ["lastNotNull"]},
+          "orientation": "horizontal"
+        }
+      },
+      {
+        "title": "RMSE",
+        "description": "均方根误差",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+        "datasource": "Prometheus",
+        "targets": [{
+          "expr": "grid_predict_rmse",
+          "legendFormat": "RMSE"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 200},
+                {"color": "red", "value": 500}
+              ]
+            },
+            "unit": "MW",
+            "displayName": "RMSE"
+          }
+        }
+      },
+      {
+        "title": "R² 决定系数",
+        "description": "模型解释力",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+        "datasource": "Prometheus",
+        "targets": [{
+          "expr": "grid_predict_r2",
+          "legendFormat": "R²"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 0.85},
+                {"color": "green", "value": 0.9}
+              ]
+            },
+            "unit": "none",
+            "displayName": "R²"
+          }
+        }
+      },
+      {
+        "title": "活跃告警数",
+        "description": "当前活跃的告警数量",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+        "datasource": "Prometheus",
+        "targets": [{
+          "expr": "grid_predict_active_alerts",
+          "legendFormat": "Alerts"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 1},
+                {"color": "red", "value": 3}
+              ]
+            },
+            "displayName": "告警"
+          }
+        }
+      },
+      {
+        "title": "MAPE 趋势 (1小时)",
+        "description": "MAPE变化趋势",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+        "datasource": "Prometheus",
+        "targets": [{
+          "expr": "grid_predict_mape",
+          "legendFormat": "MAPE (%)"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "%",
+            "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 10}
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom"},
+          "tooltip": {"mode": "multi"}
+        }
+      },
+      {
+        "title": "API 响应时间分布",
+        "description": "P50/P95/P99 响应时间",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(grid_predict_api_response_time_ms_bucket[5m]))",
+            "legendFormat": "P50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(grid_predict_api_response_time_ms_bucket[5m]))",
+            "legendFormat": "P95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(grid_predict_api_response_time_ms_bucket[5m]))",
+            "legendFormat": "P99"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "custom": {"drawStyle": "line", "lineWidth": 2}
+          }
+        }
+      },
+      {
+        "title": "API 调用频率",
+        "description": "每秒API调用数",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 12},
+        "datasource": "Prometheus",
+        "targets": [{
+          "expr": "rate(grid_predict_api_calls_total[1m])",
+          "legendFormat": "{{endpoint}} - {{status}}"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "req/s",
+            "custom": {"drawStyle": "bars", "fillOpacity": 50, "stacking": {"mode": "normal"}}
+          }
+        }
+      },
+      {
+        "title": "API 错误率",
+        "description": "HTTP 4xx/5xx 比例",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 12},
+        "datasource": "Prometheus",
+        "targets": [{
+          "expr": "grid_predict_api_error_rate * 100",
+          "legendFormat": "错误率%"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "%",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 1},
+                {"color": "red", "value": 5}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "模型漂移 (PSI)",
+        "description": "PSI > 0.25 表示显著漂移",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 12},
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "grid_predict_psi_predictions",
+            "legendFormat": "预测分布PSI"
+          },
+          {
+            "expr": "grid_predict_psi_errors",
+            "legendFormat": "误差分布PSI"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 0.1},
+                {"color": "red", "value": 0.25}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "数据质量分数",
+        "description": "0-1, 越高越好",
+        "type": "gauge",
+        "gridPos": {"h": 6, "w": 6, "x": 0, "y": 20},
+        "datasource": "Prometheus",
+        "targets": [{
+          "expr": "grid_predict_data_quality",
+          "legendFormat": "质量"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "min": 0, "max": 1,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 0.7},
+                {"color": "green", "value": 0.9}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "数据新鲜度",
+        "description": "距上次更新秒数",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 6, "y": 20},
+        "datasource": "Prometheus",
+        "targets": [{
+          "expr": "grid_predict_data_freshness_seconds",
+          "legendFormat": "秒前"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 300},
+                {"color": "red", "value": 600}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "模型推理时间分布",
+        "description": "推理耗时直方图",
+        "type": "timeseries",
+        "gridPos": {"h": 6, "w": 12, "x": 12, "y": 20},
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(grid_predict_inference_time_ms_bucket[5m]))",
+            "legendFormat": "P50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(grid_predict_inference_time_ms_bucket[5m]))",
+            "legendFormat": "P95"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {"unit": "ms"}
+        }
+      },
+      {
+        "title": "服务状态总览",
+        "description": "所有服务健康状态",
+        "type": "table",
+        "gridPos": {"h": 6, "w": 24, "x": 0, "y": 26},
+        "datasource": "Prometheus",
+        "targets": [{
+          "expr": "up",
+          "legendFormat": "{{job}}"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,52 @@
+# ============================================================================
+# 智能电网负荷预测系统 - 基础镜像 (多阶段构建)
+# 阶段1: builder - 安装依赖
+# 阶段2: runtime - 精简运行时镜像
+# ============================================================================
+
+# ---- 阶段1: Builder ----
+FROM python:3.11-slim AS builder
+
+# 设置工作目录
+WORKDIR /build
+
+# 安装系统编译依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# 复制依赖文件
+COPY docker/requirements-base.txt /build/requirements-base.txt
+
+# 安装 Python 依赖到独立目录（便于多阶段复制）
+RUN pip install --no-cache-dir --user -r /build/requirements-base.txt
+
+# ---- 阶段2: Runtime ----
+FROM python:3.11-slim AS runtime
+
+# 安装运行时系统依赖（仅运行必需的库）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    libgomp1 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# 从 builder 复制已安装的 Python 包
+COPY --from=builder /root/.local /root/.local
+
+# 设置环境变量
+ENV PATH=/root/.local/bin:$PATH
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# 创建非 root 用户
+RUN useradd -m -u 1000 appuser
+
+# 设置工作目录
+WORKDIR /app
+
+# 默认命令（由各服务覆盖）
+CMD ["python", "-c", "print('Base image ready')"]

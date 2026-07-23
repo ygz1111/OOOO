@@ -1,8 +1,8 @@
 # ========================================
-# 智能电网负荷预测 - .gitignore
+# 智能电网负荷预测系统 - .gitignore
 # ========================================
 
-# === Python ===
+# === Python 缓存 ===
 __pycache__/
 *.py[cod]
 *$py.class
@@ -26,31 +26,53 @@ ENV/
 *~
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # === Jupyter Notebook ===
 .ipynb_checkpoints/
 
-# === 训练输出（每次不同，不纳入版本控制）===
-outputs/
-saved_models/
-*.h5
-*.weights.h5
-*.keras
+# === 数据集（不上传，体积大） ===
+datas/
+*.xlsx
+*.csv
 
-# === 临时文件 ===
-*.tmp
+# === 处理后的数据（可重新生成，体积大） ===
+processed/
+*.pkl
+
+# === 模型权重文件（体积大，用Git LFS或外部存储） ===
+outputs/*.pth
+outputs/*.pt
+outputs/*.h5
+outputs/*.weights.h5
+outputs/*.keras
+saved_models/
+
+# === 日志文件 ===
 *.log
+training.log
 env_report.txt
 data_inspection_report.txt
 
-# === 压缩包 ===
+# === 临时文件 ===
+*.tmp
+*.bak
 *.zip
 *.tar.gz
 *.rar
 
-# === Google Colab ===
-/content/
-/sample_data/
+# === Docker 卷数据 ===
+docker/data/
+docker/volumes/
 
-# === 大文件通过 Git LFS 管理 ===
-# processed/step6_sequences.pkl (由 LFS 处理，不需要排除)
+# === 环境变量和密钥 ===
+.env
+.env.local
+*.secret
+
+# === Node.js（前端相关） ===
+node_modules/
+npm-debug.log*
+
+# === 系统大文件 ===
+ubuntu2004.appx

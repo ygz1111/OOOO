@@ -1,0 +1,168 @@
+# ============================================================================
+# Prometheus 告警规则
+# ============================================================================
+
+groups:
+  # ==========================================================================
+  # 预测准确率告警
+  # ==========================================================================
+  - name: prediction_accuracy
+    rules:
+      # MAPE > 5%
+      - alert: HighMAPE
+        expr: grid_predict_mape > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "预测MAPE过高 ({{ $value }}%)"
+          description: "MAPE超过5%阈值，持续5分钟"
+
+      # MAPE > 10%
+      - alert: CriticalMAPE
+        expr: grid_predict_mape > 10
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "预测MAPE严重过高 ({{ $value }}%)"
+          description: "MAPE超过10%阈值，模型可能需要重新训练"
+
+      # RMSE > 500
+      - alert: HighRMSE
+        expr: grid_predict_rmse > 500
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "预测RMSE过高 ({{ $value }})"
+
+      # R² < 0.9
+      - alert: LowR2
+        expr: grid_predict_r2 < 0.9
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "R²低于0.9 ({{ $value }})"
+          description: "模型解释力下降"
+
+  # ==========================================================================
+  # 模型漂移告警
+  # ==========================================================================
+  - name: model_drift
+    rules:
+      # PSI > 0.25
+      - alert: ModelDriftDetected
+        expr: grid_predict_psi_predictions > 0.25 or grid_predict_psi_errors > 0.25
+        for: 5m
+        labels:
+          severity: error
+        annotations:
+          summary: "检测到模型漂移"
+          description: "PSI超过0.25，建议重新训练模型"
+
+      # PSI > 0.1 (轻微漂移)
+      - alert: MinorModelDrift
+        expr: grid_predict_psi_predictions > 0.1 and grid_predict_psi_predictions <= 0.25
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "轻微模型漂移"
+          description: "PSI在0.1-0.25之间，关注模型性能"
+
+  # ==========================================================================
+  # API 性能告警
+  # ==========================================================================
+  - name: api_performance
+    rules:
+      # 错误率 > 5%
+      - alert: HighAPIErrorRate
+        expr: grid_predict_api_error_rate > 0.05
+        for: 2m
+        labels:
+          severity: error
+        annotations:
+          summary: "API错误率过高 ({{ $value | humanizePercentage }})"
+          description: "API错误率超过5%"
+
+      # 响应时间 > 2000ms (P95)
+      - alert: SlowAPIResponse
+        expr: histogram_quantile(0.95, rate(grid_predict_api_response_time_ms_bucket[5m])) > 2000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API响应时间过慢"
+          description: "P95响应时间超过2000ms"
+
+      # 调用频率突降
+      - alert: LowAPICallRate
+        expr: grid_predict_api_call_rate_per_sec < 0.01
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API调用频率极低"
+          description: "可能服务不可用"
+
+  # ==========================================================================
+  # 数据质量告警
+  # ==========================================================================
+  - name: data_quality
+    rules:
+      # 数据质量分数 < 0.8
+      - alert: LowDataQuality
+        expr: grid_predict_data_quality < 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "数据质量分数过低 ({{ $value }})"
+          description: "数据质量低于0.8"
+
+      # 数据超过10分钟未更新
+      - alert: DataStale
+        expr: grid_predict_data_freshness_seconds > 600
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "数据更新延迟"
+          description: "气象数据超过10分钟未更新"
+
+  # ==========================================================================
+  # 系统健康告警
+  # ==========================================================================
+  - name: system_health
+    rules:
+      # 服务宕机
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} 服务不可用"
+          description: "{{ $labels.instance }} 已宕机超过1分钟"
+
+      # 推理时间过长
+      - alert: SlowInference
+        expr: histogram_quantile(0.95, rate(grid_predict_inference_time_ms_bucket[5m])) > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "模型推理时间过长"
+          description: "P95推理时间超过1000ms"
+
+      # 活跃告警数过多
+      - alert: TooManyAlerts
+        expr: grid_predict_active_alerts > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "活跃告警过多 ({{ $value }})"
+          description: "系统可能存在多个问题"
