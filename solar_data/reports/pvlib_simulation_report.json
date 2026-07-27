@@ -1,0 +1,74 @@
+{
+  "simulation_software": "NREL PVLib Python 0.15.2",
+  "model": "PVWatts v5",
+  "weather_data_source": "Open-Meteo ERA5 Reanalysis",
+  "system_config": {
+    "dc_capacity_kw": 500.0,
+    "module_type": "Polycrystalline (gamma_pdc = -0.004/°C)",
+    "inverter_efficiency": 0.96,
+    "array_type": "Fixed open rack",
+    "tilt_range": "37-39° (≈latitude - 5°)",
+    "azimuth": 180,
+    "temperature_model": "SAPM (a=-3.56, b=-0.075, deltaT=3)"
+  },
+  "cities": [
+    "Boston",
+    "Burlington",
+    "Hartford",
+    "Manchester",
+    "Portland",
+    "Providence"
+  ],
+  "year_range": [
+    2019,
+    2024
+  ],
+  "total_rows": 315648,
+  "simulation_time_sec": 2.3,
+  "overall_capacity_factor": 0.1583,
+  "city_statistics": {
+    "Boston": {
+      "annual_mwh": 706.9,
+      "peak_kw": 480.0,
+      "capacity_factor": 0.1614,
+      "daylight_cf": 0.3028
+    },
+    "Burlington": {
+      "annual_mwh": 659.9,
+      "peak_kw": 480.0,
+      "capacity_factor": 0.1507,
+      "daylight_cf": 0.2821
+    },
+    "Hartford": {
+      "annual_mwh": 692.9,
+      "peak_kw": 480.0,
+      "capacity_factor": 0.1582,
+      "daylight_cf": 0.2961
+    },
+    "Manchester": {
+      "annual_mwh": 694.3,
+      "peak_kw": 480.0,
+      "capacity_factor": 0.1585,
+      "daylight_cf": 0.2976
+    },
+    "Portland": {
+      "annual_mwh": 704.1,
+      "peak_kw": 480.0,
+      "capacity_factor": 0.1608,
+      "daylight_cf": 0.3031
+    },
+    "Providence": {
+      "annual_mwh": 700.9,
+      "peak_kw": 480.0,
+      "capacity_factor": 0.16,
+      "daylight_cf": 0.2999
+    }
+  },
+  "models": {
+    "dc_model": "PVWatts",
+    "ac_model": "PVWatts inverter",
+    "sky_diffuse": "Perez anisotropic",
+    "temperature": "SAPM (wind cooling)",
+    "aoi": "Physical"
+  }
+}
