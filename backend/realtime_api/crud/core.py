@@ -311,7 +311,7 @@ class ModelPerformanceCRUD:
     async def get_performance_by_model(model_name: str, hours: int = 24) -> List[Dict[str, Any]]:
         """按模型名称查询性能记录"""
         # 修复：使用应用层 eastern_now_hour 而非 MySQL NOW()，确保时区一致且整点对齐
-        from realtime_api.app import eastern_now_hour
+        from realtime_api.services.container import eastern_now_hour
         from datetime import timedelta
         cutoff = eastern_now_hour() - timedelta(hours=hours)
         sql = """
@@ -372,7 +372,7 @@ class APILogsCRUD:
     async def get_logs_by_endpoint(endpoint: str, hours: int = 24, limit: int = 100) -> List[Dict[str, Any]]:
         """按端点查询日志"""
         # 修复：使用应用层 eastern_now_hour 而非 MySQL NOW()，确保时区一致且整点对齐
-        from realtime_api.app import eastern_now_hour
+        from realtime_api.services.container import eastern_now_hour
         from datetime import timedelta
         cutoff = eastern_now_hour() - timedelta(hours=hours)
         sql = """
@@ -444,7 +444,7 @@ class SystemMetricsCRUD:
     async def get_metrics(hours: int = 24, limit: int = 100) -> List[Dict[str, Any]]:
         """获取系统监控指标"""
         # 修复：使用应用层 eastern_now_hour 而非 MySQL NOW()，确保时区一致且整点对齐
-        from realtime_api.app import eastern_now_hour
+        from realtime_api.services.container import eastern_now_hour
         from datetime import timedelta
         cutoff = eastern_now_hour() - timedelta(hours=hours)
         sql = """

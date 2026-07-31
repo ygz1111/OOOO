@@ -149,6 +149,27 @@ CREATE INDEX idx_api_logs_timestamp ON api_request_logs(timestamp);
 CREATE INDEX idx_api_logs_endpoint ON api_request_logs(endpoint);
 CREATE INDEX idx_api_logs_status ON api_request_logs(status_code);
 
+-- 认证模块 API 访问日志（auth_crud.log_api_access）
+CREATE TABLE IF NOT EXISTS api_access_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NULL,
+    session_id VARCHAR(64) NULL,
+    method VARCHAR(10) NOT NULL,
+    url VARCHAR(2048) NOT NULL,
+    query_params VARCHAR(1024) NULL,
+    request_body_hash VARCHAR(64) NULL,
+    client_ip VARCHAR(64) NOT NULL,
+    user_agent VARCHAR(512) NULL,
+    status_code INT NOT NULL,
+    response_time_ms INT NULL,
+    request_size_bytes INT NULL,
+    response_size_bytes INT NULL,
+    error_message VARCHAR(1024) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_api_access_created (created_at),
+    INDEX idx_api_access_status (status_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- =====================================================
 -- 5. 系统监控指标表
 -- =====================================================

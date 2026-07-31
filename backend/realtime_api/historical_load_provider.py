@@ -64,7 +64,7 @@ class HistoricalLoadProvider:
             pd.DataFrame: 包含 timestamp 和 System_Load 列，或 None（无数据）
         """
         if end_time is None:
-            from realtime_api.app import eastern_now
+            from realtime_api.services.container import eastern_now
             end_time = eastern_now()
 
         # 截断到整点，确保与 Open-Meteo 整点天气数据和预测 target_timestamp 对齐
@@ -155,7 +155,7 @@ class HistoricalLoadProvider:
         注意：这是近似值，随着系统运行积累真实预测数据后会被替代。
         """
         if end_time is None:
-            from realtime_api.app import eastern_now
+            from realtime_api.services.container import eastern_now
             end_time = eastern_now()
 
         # 截断到整点
