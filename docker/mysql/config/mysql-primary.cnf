@@ -1,0 +1,48 @@
+# MySQL 主服务器配置
+[mysqld]
+
+# 主服务器唯一ID
+server-id=1
+
+# 启用二进制日志
+log-bin=mysql-bin
+binlog-format=ROW
+log-slave-updates=ON
+
+# 需要复制的数据库
+database-filter=binlog-do-db=${MYSQL_DATABASE:-OOOO}
+
+# 复制模式
+sync-binlog=1
+
+# binlog清理时间
+expire-logs-days=7
+
+# 从服务器连接间隔
+master-connect-retry=10
+
+# 事务隔离级别
+transaction-isolation=REPEATABLE-READ
+
+# 性能优化
+max_connections=500
+innodb_buffer_pool_size=1G
+innodb_log_file_size=256M
+innodb_log_buffer_size=32M
+
+# 网络
+listen-address=0.0.0.0
+bind-address=0.0.0.0
+
+# 时区
+default-time-zone='+00:00'
+
+# 字符集
+character-set-server=utf8mb4
+collation-server=utf8mb4_unicode_ci
+
+# Group Replication (可选，为未来MySQL InnoDB Cluster准备)
+# loose-group_replication_group_name="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+# loose-group_replication_start_on_boot=OFF
+# loose-group_replication_local_address="mysql-primary:33061"
+# loose-group_replication_group_seeds="mysql-primary:33061,mysql-replica:33061"

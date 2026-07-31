@@ -1,0 +1,548 @@
+# ============================================================================
+# 智能电网负荷预测系统 - 高可用 Docker Compose
+# ============================================================================
+#
+# 目标: 解决单点故障，实现高可用架构
+# 组件:
+#   1. mysql-primary  - MySQL主库
+#   2. mysql-replica   - MySQL从库(2个，用于读写分离和故障转移)
+#   3. mysql-router    - MySQL Router (负责读写分离)
+#   4. redis-sentinel  - Redis哨兵(3节点，高可用)
+#   5. consul-server   - 服务发现集群(3节点)
+#   6. api-gateway * 3 - API网关(3节点，负载均衡)
+#   7. weather-collector * 2 - 气象采集(2节点)
+#   8. feature-engine * 2 - 特征工程(2节点)
+#   9. model-inference * 2 - 模型推理(2节点)
+#
+# 架构改进:
+#   ✅ 数据库主从复制 + 自动切换
+#   ✅ Redis Sentinel 高可用
+#   ✅ 服务注册发现
+#   ✅ 多实例部署 + 负载均衡
+# ============================================================================
+
+version: "3.8"
+
+services:
+  # ==========================================================================
+  # 1. MySQL 主库
+  # ==========================================================================
+  mysql-primary:
+    image: mysql:8.0
+    container_name: grid-mysql-primary
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: ${MYSQL_DB:-OOOO}
+      MYSQL_USER: ${MYSQL_USER:-griduser}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-gridpass123}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_primary_data:/var/lib/mysql
+      - ../docker/mysql/config/mysql-primary.cnf:/etc/mysql/conf.d/mysql.cnf:ro
+      - ../docker/mysql/scripts:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot123"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    networks:
+      - ha-grid-network
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2"
+        reservations:
+          memory: 1G
+
+  # ==========================================================================
+  # 2. MySQL 从库 (2个)
+  # ==========================================================================
+  mysql-replica:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_REPLICA_PASSWORD: repl123
+    volumes:
+      - mysql_replica_data:/var/lib/mysql
+      - ../docker/mysql/config/mysql-replica.cnf:/etc/mysql/conf.d/mysql.cnf:ro
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+    healthcheck:
+      test: [
+        "CMD",
+        "mysql",
+        "-h",
+        "localhost",
+        "-u",
+        "root",
+        "-proot123",
+        "-e",
+        "SHOW SLAVE STATUS\G"
+      ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - ha-grid-network
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1"
+        reservations:
+          memory: 512M
+
+  # ==========================================================================
+  # 3. MySQL Router (读写分离代理)
+  # ==========================================================================
+  mysql-router:
+    image: mysql/mysql-router:8.0
+    container_name: grid-mysql-router
+    restart: unless-stopped
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+      mysql-replica:
+        condition: service_healthy
+    ports:
+      - "6446:6446"  # 读端口
+      - "6447:6447"  # 写端口
+    volumes:
+      - ../docker/mysql/config/router.conf:/etc/mysqlrouter/mysqlrouter.conf:ro
+    networks:
+      - ha-grid-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6446"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ==========================================================================
+  # 4a. Redis 主节点
+  # ==========================================================================
+  redis-master:
+    image: redis:7-alpine
+    container_name: grid-redis-master
+    restart: unless-stopped
+    command: redis-server --port 6379
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --requirepass redis123
+      --masterauth redis123
+      --protected-mode no
+    ports:
+      - "6379"
+    volumes:
+      - redis_master_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis123", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ha-grid-network
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 600M
+        reservations:
+          memory: 300M
+
+  # ==========================================================================
+  # 4b. Redis 从节点 (2个)
+  # ==========================================================================
+  redis-slave:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --port 6379
+      --slaveof redis-master 6379
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --requirepass redis123
+      --masterauth redis123
+      --protected-mode no
+    volumes:
+      - redis_slave_data:/data
+    depends_on:
+      - redis-master
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis123", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ha-grid-network
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 600M
+        reservations:
+          memory: 300M
+
+  # ==========================================================================
+  # 4c. Redis Sentinel (3个，实现自动故障转移)
+  # ==========================================================================
+  redis-sentinel:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-sentinel /etc/redis/sentinel.conf
+    volumes:
+      - ../docker/redis/sentinel.conf:/etc/redis/sentinel.conf:ro
+    ports:
+      - "26379"
+    depends_on:
+      - redis-master
+      - redis-slave
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ha-grid-network
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          memory: 100M
+        reservations:
+          memory: 50M
+
+  # ==========================================================================
+  # 5a. Consul Server (服务发现集群，3节点实现高可用)
+  # ==========================================================================
+  consul-server-1:
+    image: hashicorp/consul:1.15
+    container_name: grid-consul-1
+    restart: unless-stopped
+    command: "agent -server -bootstrap-expect=3 -ui -client=0.0.0.0"
+      environment:
+      - CONSUL_BIND_INTERFACE=eth0
+    ports:
+      - "8500:8500"
+      - "8600:8600/udp"
+    volumes:
+      - consul_1_data:/consul/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8500/v1/agent/self"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - ha-grid-network
+
+  consul-server-2:
+    image: hashicorp/consul:1.15
+    container_name: grid-consul-2
+    restart: unless-stopped
+    command: "agent -server -retry-join=consul-server-1"
+    environment:
+      - CONSUL_BIND_INTERFACE=eth0
+    volumes:
+      - consul_2_data:/consul/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8500/v1/agent/self"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - ha-grid-network
+    depends_on:
+      - consul-server-1
+
+  consul-server-3:
+    image: hashicorp/consul:1.15
+    container_name: grid-consul-3
+    restart: unless-stopped
+    command: "agent -server -retry-join=consul-server-1"
+    environment:
+      - CONSUL_BIND_INTERFACE=eth0
+    ports:
+      - "8501:8500"
+    volumes:
+      - consul_3_data:/consul/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8500/v1/agent/self"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - ha-grid-network
+    depends_on:
+      - consul-server-1
+
+  # ==========================================================================
+  # 6. API Gateway (3个实例，实现负载均衡)
+  # ==========================================================================
+  api-gateway:
+    build:
+      context: ..
+      dockerfile: docker/services/api-gateway/Dockerfile
+    restart: unless-stopped
+    environment:
+      - DB_HOST=mysql-router
+      - DB_PORT=6446
+      - DB_NAME=${MYSQL_DB:-OOOO}
+      - DB_USER=${MYSQL_USER:-griduser}
+      - DB_PASS=${MYSQL_PASSWORD:-gridpass123}
+      - REDIS_SENTINEL_HOSTS=redis-sentinel:26379
+      - REDIS_SENTINEL_SET=mymaster
+      - REDIS_PASSWORD=redis123
+      - CONSUL_HOST=consul-server-1
+      - LOG_LEVEL=INFO
+      - WORKERS=2
+    ports:
+      - "8000"
+    depends_on:
+      mysql-router:
+        condition: service_healthy
+      redis-sentinel:
+        condition: service_healthy
+      consul-server-1:
+        condition: service_healthy
+    volumes:
+      - gateway_ha_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/system/status"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - ha-grid-network
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+
+  # ==========================================================================
+  # 7. Weather Collector (2个实例)
+  # ==========================================================================
+  weather-collector:
+    build:
+      context: ..
+      dockerfile: docker/services/weather-collector/Dockerfile
+    restart: unless-stopped
+    environment:
+      - COLLECT_INTERVAL=300
+      - DB_HOST=mysql-router
+      - DB_PORT=6446
+      - DB_NAME=${MYSQL_DB:-OOOO}
+      - DB_USER=${MYSQL_USER:-griduser}
+      - DB_PASS=${MYSQL_PASSWORD:-gridpass123}
+      - REDIS_SENTINEL_HOSTS=redis-sentinel:26379
+      - REDIS_SENTINEL_SET=mymaster
+      - REDIS_PASSWORD=redis123
+      - CONSUL_HOST=consul-server-1
+      - LOG_LEVEL=INFO
+    depends_on:
+      mysql-router:
+        condition: service_healthy
+      redis-sentinel:
+        condition: service_healthy
+      consul-server-1:
+        condition: service_healthy
+    ports:
+      - "9090"
+    volumes:
+      - weather_ha_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - ha-grid-network
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+      update_config:
+        parallelism: 1
+        delay: 10s
+
+  # ==========================================================================
+  # 8. Feature Engine (2个实例)
+  # ==========================================================================
+  feature-engine:
+    build:
+      context: ..
+      dockerfile: docker/services/feature-engine/Dockerfile
+    restart: unless-stopped
+    environment:
+      - REDIS_SENTINEL_HOSTS=redis-sentinel:26379
+      - REDIS_SENTINEL_SET=mymaster
+      - REDIS_PASSWORD=redis123
+      - CONSUL_HOST=consul-server-1
+      - LOG_LEVEL=INFO
+    depends_on:
+      redis-sentinel:
+        condition: service_healthy
+      consul-server-1:
+        condition: service_healthy
+    ports:
+      - "8600"
+    volumes:
+      - feature_ha_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8600/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - ha-grid-network
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+
+  # ==========================================================================
+  # 9. Model Inference (2个实例)
+  # ==========================================================================
+  model-inference:
+    build:
+      context: ..
+      dockerfile: docker/services/model-inference/Dockerfile
+    restart: unless-stopped
+    environment:
+      - MODEL_DIR=/app/outputs
+      - DEVICE=cpu
+      - REDIS_SENTINEL_HOSTS=redis-sentinel:26379
+      - REDIS_SENTINEL_SET=mymaster
+      - REDIS_PASSWORD=redis123
+      - CONSUL_HOST=consul-server-1
+      - LOG_LEVEL=INFO
+    depends_on:
+      redis-sentinel:
+        condition: service_healthy
+      consul-server-1:
+        condition: service_healthy
+    ports:
+      - "8500"
+    volumes:
+      - inference_ha_logs:/app/logs
+      - ../../outputs:/app/outputs:ro
+      - ../../processed:/app/processed:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8500/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - ha-grid-network
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 2G
+          cpus: "4"
+        reservations:
+          memory: 1G
+      update_config:
+        parallelism: 1
+        delay: 10s
+
+# ============================================================================
+# 数据卷 - 每个组件独立数据卷以支持多实例
+# ============================================================================
+volumes:
+  # MySQL
+  mysql_primary_data:
+    driver: local
+  mysql_replica_data:
+    driver: local
+
+  # Redis
+  redis_master_data:
+    driver: local
+  redis_slave_data:
+    driver: local
+
+  # Consul
+  consul_1_data:
+    driver: local
+  consul_2_data:
+    driver: local
+  consul_3_data:
+    driver: local
+
+  # 日志
+  gateway_ha_logs:
+    driver: local
+  weather_ha_logs:
+    driver: local
+  feature_ha_logs:
+    driver: local
+  inference_ha_logs:
+    driver: local
+
+# ============================================================================
+# 网络 - 使用自定义网络以支持服务发现
+# ============================================================================
+networks:
+  ha-grid-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+
+# ============================================================================
+# HA 部署说明
+# ============================================================================
+#
+# 启动方式:
+# docker-compose -f docker-compose-ha.yml up -d
+#
+# 特性:
+# ✅ MySQL主从复制 + Router读写分离
+# ✅ Redis Sentinel自动故障转移
+# ✅ Consul服务发现高可用集群
+# ✅ 所有业务服务多实例部署
+# ✅ 滚动更新策略
+# ✅ 健康检查全覆盖
+#
+# 监控命令:
+# docker-compose -f docker-compose-ha.yml ps
+# docker logs -f grid-mysql-primary
+# docker logs -f grid-consul-1
+# curl http://localhost:8500
+#
+# 注意:
+# 1. 需要确保Docker宿主机内存 >= 24GB
+# 2. 需配置好MySQL Router的配置文件
+# 3. Redis配置已包含在docker/redis/
+# 4. Consul提供完整的服务注册发现功能

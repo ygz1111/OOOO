@@ -1,1 +1,1 @@
-processed/step6_sequences.pkl filter=lfs diff=lfs merge=lfs -text
+# Git LFS 规则已移除：processed/ 已被 .gitignore 忽略，LFS 规则永不生效

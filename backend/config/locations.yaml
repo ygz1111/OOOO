@@ -1,0 +1,95 @@
+# 智能电网负荷预测系统 - 气象站点配置文件
+# 格式: YAML
+# 说明: 此文件定义了系统中使用的所有气象站点
+
+# 站点列表
+locations:
+  # 马萨诸塞州
+  - name: "Boston"
+    lat: 42.3601
+    lon: -71.0589
+    state: "MA"
+    elevation: 43
+    description: "波士顿市中心气象站"
+    active: true
+
+  - name: "Manchester"
+    lat: 42.9956
+    lon: -71.4548
+    state: "NH"
+    elevation: 74
+    description: "新罕布什尔州曼彻斯特气象站"
+    active: true
+
+  # 康涅狄格州
+  - name: "Hartford"
+    lat: 41.7637
+    lon: -72.6851
+    state: "CT"
+    elevation: 58
+    description: "哈特福德市中心气象站"
+    active: true
+
+  # 缅因州
+  - name: "Portland"
+    lat: 43.6615
+    lon: -70.2553
+    state: "ME"
+    elevation: 16
+    description: "波特兰气象观测站"
+    active: true
+
+  # 罗得岛州
+  - name: "Providence"
+    lat: 41.8240
+    lon: -71.4128
+    state: "RI"
+    elevation: 19
+    description: "普罗维登斯气象站"
+    active: true
+
+  # 佛蒙特州
+  - name: "Burlington"
+    lat: 44.4759
+    lon: -73.2121
+    state: "VT"
+    elevation: 38
+    description: "伯灵顿市中心气象站"
+    active: true
+
+# 系统参数
+system:
+  # 默认站点 (当未指定时使用)
+  default_location: "Boston"
+  
+  # 最少活跃站点数量 (低于此数量触发告警)
+  min_active_locations: 3
+  
+  # 区域边界定义
+  region_bounds:
+    min_lat: 41.0
+    max_lat: 45.0
+    min_lon: -74.0
+    max_lon: -70.0
+
+# 区域分组 (可选)
+regions:
+  new_england:
+    name: "新英格兰地区"
+    description: "美国新英格兰地区6州"
+    locations: ["Boston", "Hartford", "Portland", "Manchester", "Providence", "Burlington"]
+  
+  massachusetts:
+    name: "马萨诸塞州"
+    description: "麻州负荷预测专用"
+    locations: ["Boston"]
+  
+  multi_state:
+    name: "跨州预测"
+    description: "康涅狄格+马萨诸塞"
+    locations: ["Boston", "Hartford"]
+
+# 版本信息
+version: "1.0.0"
+last_updated: "2026-07-25"
+author: "智能电网负荷预测系统"

@@ -1,0 +1,164 @@
+# 智能电网负荷预测系统 - 主配置文件
+# 支持注释、结构化配置、环境变量覆盖
+
+# 系统配置
+system:
+  # 环境: development/production/staging
+  env: production
+  
+  # 日志级别: DEBUG/INFO/WARNING/ERROR
+  log_level: INFO
+  
+  # 时区设置
+  timezone: Asia/Shanghai
+  
+  # 并发配置
+  max_workers: 8
+  
+  # 请求超时(秒)
+  request_timeout: 30
+  
+  # 是否启用监控
+  enable_monitoring: true
+
+# 数据库配置 (MySQL)
+database:
+  # 数据库连接
+  host: localhost
+  port: 3306
+  database: OOOO
+  user: root
+  password: 315131
+  
+  # 连接池配置
+  pool_size: 10
+  pool_reset_session: true
+  autocommit: true
+  
+  # 编码设置
+  use_unicode: true
+  charset: utf8mb4
+
+# Open-Meteo API配置
+openmeteo:
+  # API端点
+  api_url: https://api.open-meteo.com/v1/forecast
+  
+  # 数据请求配置
+  past_days: 7
+  forecast_days: 1
+  timezone: America/New_York
+  
+  # 限流控制(秒)
+  rate_limit_interval: 1.5
+  
+  # 缓存有效期(秒) - 5分钟内复用数据，避免频繁请求API
+  cache_ttl: 300
+  
+  # 重试配置
+  request_timeout: 10.0
+  max_retries: 3
+
+# 模型配置
+model:
+  # 模型文件目录
+  model_dir: models
+  
+  # 运行设备: cuda/cpu
+  device: cuda
+  
+  # 批处理大小
+  batch_size: 16
+  
+  # 缓存TTL(秒)
+  cache_ttl: 300
+  
+  # 集成模型权重
+  ensemble_weights:
+    lstm: 0.25
+    bigru: 0.25
+    tcn: 0.25
+    transformer: 0.25
+
+# 监控配置
+monitoring:
+  # Prometheus指标端口
+  prometheus_port: 8001
+  
+  # 指标采集间隔(秒)
+  scrape_interval: 15
+  
+  # 保留时间(天)
+  retention_days: 30
+
+# 日志配置
+logging:
+  # 日志输出模式: console/file/both
+  mode: both
+  
+  # 文件日志配置
+  file:
+    path: logs/app.log
+    max_size_mb: 100
+    backup_count: 5
+  
+  # 结构化日志
+  structured: true
+
+# 安全配置
+security:
+  # API密钥(可选)
+  api_keys:
+    - key1_example
+    - key2_example
+  
+  # CORS配置
+  cors:
+    allowed_origins:
+      - "http://localhost:3000"
+      - "http://localhost:8000"
+    allowed_methods: ["*"]
+    allowed_headers: ["*"]
+
+# 缓存配置(Redis)
+cache:
+  # 主机
+  host: localhost
+  port: 6379
+  db: 0
+  
+  # 密码(如有)
+  password: ""
+  
+  # 连接池
+  max_connections: 20
+
+# 备份配置
+backup:
+  # 自动备份间隔
+  interval_hours: 24
+  
+  # 备份目录
+  directory: /backup
+  
+  # 保留备份数
+  retention_count: 7
+
+# 告警配置
+alerts:
+  # 性能阈值
+  thresholds:
+    cpu_percent: 80
+    memory_percent: 85
+    disk_usage_percent: 90
+    response_time_ms: 5000
+  
+  # 通知方式
+  notifications:
+    email: false
+    webhook: false
+
+# 版本信息
+version: "1.0.0"
+build_date: "2026-07-25"
+author: "智能电网负荷预测项目组"

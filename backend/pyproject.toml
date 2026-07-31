@@ -1,0 +1,263 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "smartgrid-forecast"
+version = "1.0.0"
+description = "智能电网光伏负荷预测系统"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "毕业设计项目", email = "project@example.com"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+    "httpx>=0.24.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "scikit-learn>=1.3.0",
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-mock>=3.11.0",
+    "pytest-benchmark>=4.0.0",
+    "requests>=2.31.0",
+    "aiofiles>=23.1.0",
+    "psutil>=5.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.5.0",
+    "pre-commit>=3.3.0",
+]
+test = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-mock>=3.11.0",
+    "pytest-benchmark>=4.0.0",
+    "hypothesis>=6.80.0",
+]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.1.0",
+    "mkdocstrings[python]>=0.22.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/smartgrid-forecast"
+Documentation = "https://github.com/yourusername/smartgrid-forecast#readme"
+Repository = "https://github.com/yourusername/smartgrid-forecast"
+Issues = "https://github.com/yourusername/smartgrid-forecast/issues"
+
+[tool.setuptools_scm]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = """
+    -v
+    --tb=short
+    --strict-markers
+    --strict-config
+    --durations=10
+    --cov=realtime_api
+    --cov-report=term-missing:skip-covered
+    --cov-report=html:coverage_html
+    --cov-report=xml:coverage.xml
+    --cov-fail-under=80
+"""
+testpaths = ["tests"]
+markers = [
+    "unit: 单元测试 - 测试单个组件功能",
+    "integration: 集成测试 - 测试组件间交互",
+    "e2e: 端到端测试 - 测试完整流程",
+    "performance: 性能测试 - 测试性能指标",
+    "exception: 异常测试 - 测试错误处理",
+    "slow: 慢测试 - 运行时间较长的测试",
+    "api: API测试 - 测试API接口",
+    "data: 数据测试 - 测试数据处理逻辑",
+]
+asyncio_mode = "auto"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["realtime_api"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/.tox/*",
+    "*/.venv/*",
+    "*/venv/*",
+    "*test_*.py",
+    "*_test.py",
+]
+branch = true
+parallel = true
+concurrency = ["thread", "multiprocessing"]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "pass",
+    "...",
+]
+exclude_also = [
+    "@abstractmethod",
+    "@property",
+    "@overload",
+]
+fail_under = 80.0
+
+[tool.coverage.html]
+directory = "coverage_html"
+
+[tool.black]
+line-length = 100
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # 标准排除
+  \.eggs
+  |\.git
+  |\.hg
+  |\.mypy_cache
+  |\.nox
+  |\.tox
+  |\.venv
+  |\.svn
+  |_build
+  |buck-out
+  |build
+  |dist
+  |venv
+  # 项目特定
+  |.pytest_cache
+  |coverage_html
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+src_paths = ["realtime_api", "tests"]
+known_first_party = ["realtime_api"]
+known_third_party = ["pytest", "pandas", "numpy"]
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+
+[tool.flake8]
+max-line-length = 100
+extend-ignore = ["E203", "W503"]
+per-file-ignores = [
+    "tests/*: S101,D100,D101,D102,D103,D104,D105,D106,D107",
+    "realtime_api/*: D100,D101,D102,D103,D104,D105,D106,D107",
+]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+disallow_untyped_generics = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["pandas.*", "numpy.*", "sklearn.*"]
+ignore_missing_imports = true
+
+[tool.bandit]
+skips = ["B101", "B601"]
+
+[tool.pylint.main]
+disable = [
+    "C0111",  # missing-docstring
+    "R0903",  # too-few-public-methods
+    "C0103",  # invalid-name
+    "W0621",  # redefined-outer-name
+    "W0511",  # fixme
+    "R0801",  # duplicate-code
+    "R0913",  # too-many-arguments
+]
+
+[tool.pylint.format]
+max-line-length = 100
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "I"]
+ignore = []
+
+[tool.tox]
+legacy_tox_ini = """
+[tox]
+envlist = py38,py39,py310,py311,black,isort,flake8,mypy,pytest,coverage
+isolated_build = true
+
+[testenv]
+deps = .[test]
+commands = pytest {posargs:tests}
+
+[testenv:black]
+deps = black
+commands = black --check realtime_api tests
+
+[testenv:isort]
+deps = isort
+commands = isort --check-only realtime_api tests
+
+[testenv:flake8]
+deps = flake8
+commands = flake8 realtime_api tests
+
+[testenv:mypy]
+deps = mypy
+commands = mypy realtime_api tests
+
+[testenv:coverage]
+deps = .[test]
+commands = 
+    pytest --cov=realtime_api --cov-report=html --cov-report=term tests
+    coverage xml
+"""

@@ -1,0 +1,18 @@
+前端服务已启动！
+
+访问地址：
+- React前端静态页面：http://localhost:3001
+- 前端源码位置：src/
+- 主要页面：
+  * 仪表板 (Dashboard)：src/pages/Dashboard.tsx
+  * 负载预测 (Load Forecast)：src/pages/LoadForecast.tsx
+  * 太阳能发电 (Solar Generation)：src/pages/SolarGeneration.tsx
+  * 系统状态 (System Status)：src/pages/SystemStatus.tsx
+  * 天气监控 (Weather Monitor)：src/pages/WeatherMonitor.tsx
+  * 历史分析 (Historical Analysis)：src/pages/HistoricalAnalysis.tsx
+
+前端技术栈：
+- React 18 + TypeScript
+- Tailwind CSS + Material-UI
+- Recharts图表库
+- React Router导航

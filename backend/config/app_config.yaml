@@ -1,0 +1,222 @@
+# 智能电网负荷预测系统 - 应用配置文件
+
+# ============================================================================
+# 系统配置
+# ============================================================================
+system:
+  name: "智能电网负荷预测系统"
+  version: "1.1.0"
+  environment: "production"  # development, testing, production
+  
+# ============================================================================
+# API服务配置
+# ============================================================================
+api:
+  host: "0.0.0.0"
+  port: 8000
+  debug: false
+  cors_origins: ["*"]
+  timeout_seconds: 30
+  rate_limit_per_minute: 60
+  
+# ============================================================================
+# 气象数据配置
+# ============================================================================
+weather:
+  # 新英格兰地区气象站点
+  locations:
+    - name: "Boston"
+      lat: 42.3601
+      lon: -71.0589
+      description: "波士顿气象站"
+      
+    - name: "New York"
+      lat: 40.7128
+      lon: -74.0060
+      description: "纽约气象站"
+      
+    - name: "Philadelphia"
+      lat: 39.9526
+      lon: -75.1652
+      description: "费城气象站"
+      
+    - name: "Portland"
+      lat: 43.6591
+      lon: -70.2568
+      description: "波特兰气象站"
+      
+    - name: "Albany"
+      lat: 42.6526
+      lon: -73.7562
+      description: "奥尔巴尼气象站"
+      
+    - name: "Hartford"
+      lat: 41.7637
+      lon: -72.6851
+      description: "哈特福德气象站"
+      
+  # Open-Meteo API配置
+  openmeteo:
+    base_url: "https://api.open-meteo.com/v1"
+    forecast_days: 2
+    past_days: 7
+    rate_limit_interval: 1.5
+    cache_ttl: 300
+    
+# ============================================================================
+# 模型配置
+# ============================================================================
+models:
+  # 模型权重 (集成学习中各模型的权重)
+  ensemble_weights:
+    lstm: 0.25
+    bigru: 0.25
+    tcn: 0.25
+    transformer: 0.25
+    
+  # 模型文件路径
+  model_paths:
+    lstm: "models/lstm_model.onnx"
+    bigru: "models/bigru_model.onnx"
+    tcn: "models/tcn_model.onnx"
+    transformer: "models/transformer_model.onnx"
+    
+  # 特征工程配置
+  feature_engineering:
+    lookback_window: 168  # 168小时 = 7天
+    feature_dimensions: 38
+    
+# ============================================================================
+# 数据配置
+# ============================================================================
+data:
+  # 归一化配置
+  normalization:
+    method: "minmax"  # minmax, standard
+    feature_range: [0, 1]
+    
+  # 数据质量阈值
+  quality_thresholds:
+    temperature_min: -50.0
+    temperature_max: 60.0
+    humidity_min: 0.0
+    humidity_max: 100.0
+    wind_speed_min: 0.0
+    wind_speed_max: 200.0
+    
+# ============================================================================
+# 光伏发电配置
+# ============================================================================
+solar:
+  installed_capacity_mw: 500.0
+  performance_ratio: 0.80
+  temperature_coefficient: 0.004  # 温度衰减系数
+  reference_temperature: 25.0
+  
+# ============================================================================
+# 监控配置
+# ============================================================================
+monitoring:
+  # 准确性追踪配置
+  accuracy:
+    window_size: 1000  # 保留最近1000条预测记录
+    metrics: ["mape", "rmse", "mae", "r2"]
+    
+  # 漂移检测配置  
+  drift_detection:
+    psi_threshold: 0.2  # PSI超过0.2认为有显著漂移
+    window_size: 100
+    
+  # 数据质量监控
+  data_quality:
+    check_interval_minutes: 15
+    alert_threshold: 0.95  # 数据质量低于95%时告警
+    
+# ============================================================================
+# 缓存配置
+# ============================================================================
+cache:
+  redis:
+    host: "redis"
+    port: 6379
+    db: 0
+    password: null
+    
+  # 缓存策略
+  strategies:
+    weather_data_ttl: 3600  # 1小时
+    prediction_results_ttl: 1800  # 30分钟
+    model_cache_ttl: 7200  # 2小时
+    
+# ============================================================================
+# 认证配置
+# ============================================================================
+auth:
+  jwt:
+    # 生产环境必须通过环境变量 AUTH_JWT_SECRET_KEY 提供强随机密钥；
+    # 该默认值仅作开发兜底，config_manager.get_jwt_secret() 会优先读取环境变量。
+    secret_key: "your-secret-key-change-in-production"
+    algorithm: "HS256"
+    access_token_expire_minutes: 30
+    refresh_token_expire_days: 7
+    
+  # 默认用户角色
+  default_roles:
+    - name: "admin"
+      permissions: ["read", "write", "delete", "admin"]
+      
+    - name: "analyst"
+      permissions: ["read", "write", "export"]
+      
+    - name: "viewer"
+      permissions: ["read"]
+      
+# ============================================================================
+# 数据库配置
+# ============================================================================
+database:
+  mysql:
+    host: "mysql"
+    port: 3306
+    database: "smart_grid_db"
+    pool_size: 20
+    pool_recycle: 3600
+    connect_timeout: 30
+    
+# ============================================================================
+# 日志配置
+# ============================================================================
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file:
+    enabled: true
+    path: "logs/app.log"
+    max_size_mb: 100
+    backup_count: 5
+  
+# ============================================================================
+# 备份配置
+# ============================================================================
+backup:
+  mysql:
+    enabled: true
+    schedule: "0 2 * * *"  # 每天凌晨2点备份
+    retention_days: 30
+    backup_path: "/backups/mysql"
+    
+  redis:
+    enabled: true
+    rdb_save_interval: 3600  # 1小时间隔
+    aof_enabled: true
+    
+# ============================================================================
+# 环境变量覆盖说明
+# ============================================================================
+# 以下环境变量可以覆盖配置文件中的设置:
+# - SYSTEM_ENVIRONMENT: 环境 (development/production)
+# - API_PORT: API端口
+# - DATABASE_HOST: 数据库主机
+# - REDIS_HOST: Redis主机
+# - AUTH_JWT_SECRET_KEY: JWT密钥
+# - LOGGING_LEVEL: 日志级别

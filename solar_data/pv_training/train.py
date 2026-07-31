@@ -91,14 +91,18 @@ class PVTrainer:
     
     def _make_loader(self, X, y, shuffle):
         dataset = TensorDataset(X, y)
+        num_workers = self.config["num_workers"]
+        # Windows 上多进程 DataLoader 容易崩溃, 设为 0
+        if sys.platform == "win32" and not USE_CUDA:
+            num_workers = 0
         return DataLoader(
             dataset,
             batch_size=self.config["batch_size"],
             shuffle=shuffle,
-            num_workers=self.config["num_workers"],
+            num_workers=num_workers,
             drop_last=False,
             pin_memory=self.config["pin_memory"],
-            persistent_workers=self.config["num_workers"] > 0,
+            persistent_workers=num_workers > 0,
         )
     
     def _get_criterion(self):
