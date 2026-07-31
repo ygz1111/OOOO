@@ -10,6 +10,7 @@
 author: 毕业设计项目
 """
 
+from realtime_api.utils.background import fire_and_forget
 import asyncio
 import time
 import uuid
@@ -66,6 +67,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
             # 天气当前值与系统状态（无敏感数据，供前端免登录展示）
             '/api/weather/current',
             '/api/system/status',
+            # Prometheus 抓取端点（无敏感数据）
+            '/metrics',
         ]
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint):
@@ -264,7 +267,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     logger.error(f"异步记录API日志失败: {e}")
 
             # 启动后台任务
-            asyncio.create_task(async_log())
+            fire_and_forget(async_log, "api_access_log")
             
         except Exception as e:
             logger.error(f"构建API日志失败: {e}")

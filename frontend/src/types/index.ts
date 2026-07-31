@@ -237,3 +237,47 @@ export interface SolarModelInfoResponse {
   fallback?: string
   timestamp: string
 }
+
+// ========================================
+// 风电预测 API 类型
+// ========================================
+
+export interface WindGenerationResponse {
+  status: string
+  hourly_generation_mw: number[]
+  hourly_wind_speed_hub: number[]
+  hourly_efficiency: number[]
+  hourly_uncertainty_mw: number[]
+  hourly_air_density: number[]
+  timestamps: string[]
+  total_daily_mwh: number
+  capacity_factor: number
+  turbine_type: string
+  installed_capacity_mw: number
+  timestamp: string
+}
+
+export interface PowerCurveResponse {
+  status: string
+  turbine_type: string
+  rated_power_kw: number
+  rotor_diameter_m: number
+  hub_height_m: number
+  cut_in_speed: number
+  rated_speed: number
+  cut_out_speed: number
+  power_coefficient: number
+  mechanical_efficiency: number
+  n_turbines: number
+  installed_capacity_mw: number
+  wind_shear_alpha: number
+  wake_loss: number
+  availability: number
+  curve: Array<{
+    wind_speed_ms: number
+    power_curve_kw: number
+    power_theoretical_kw: number
+    efficiency: number
+  }>
+  timestamp: string
+}

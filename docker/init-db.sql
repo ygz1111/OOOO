@@ -248,7 +248,7 @@ CREATE TABLE IF NOT EXISTS performance_alerts (
     
     -- 处理状态
     resolved BOOLEAN DEFAULT false,
-    resolved_at TIMESTAMP WITH TIME ZONE,
+    resolved_at TIMESTAMP NULL,
     resolved_by VARCHAR(100)
 );
 

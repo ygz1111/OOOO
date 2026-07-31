@@ -4,49 +4,10 @@ import { useApi } from '../contexts/ApiContext'
 import MetricCard from '../components/MetricCard'
 import { MetricCardSkeleton } from '../components/Skeleton'
 import { RefreshButton } from '../components/ui/MicroInteractions'
-import ParticleField from '../components/ui/ParticleField'
+import apiService from '../services/api'
+import type { WindGenerationResponse, PowerCurveResponse } from '../types'
 
 // 风电API响应类型
-interface WindGenerationResponse {
-  status: string
-  hourly_generation_mw: number[]
-  hourly_wind_speed_hub: number[]
-  hourly_efficiency: number[]
-  hourly_uncertainty_mw: number[]
-  hourly_air_density: number[]
-  timestamps: string[]
-  total_daily_mwh: number
-  capacity_factor: number
-  turbine_type: string
-  installed_capacity_mw: number
-  timestamp: string
-}
-
-interface PowerCurveResponse {
-  status: string
-  turbine_type: string
-  rated_power_kw: number
-  rotor_diameter_m: number
-  hub_height_m: number
-  cut_in_speed: number
-  rated_speed: number
-  cut_out_speed: number
-  power_coefficient: number
-  mechanical_efficiency: number
-  n_turbines: number
-  installed_capacity_mw: number
-  wind_shear_alpha: number
-  wake_loss: number
-  availability: number
-  curve: Array<{
-    wind_speed_ms: number
-    power_curve_kw: number
-    power_theoretical_kw: number
-    efficiency: number
-  }>
-  timestamp: string
-}
-
 const WindGeneration: React.FC = () => {
   const { prediction, weather, isInitialLoad } = useApi()
   const [windData, setWindData] = useState<WindGenerationResponse | null>(null)
@@ -55,38 +16,32 @@ const WindGeneration: React.FC = () => {
   const [curveLoading, setCurveLoading] = useState(false)
   const [windError, setWindError] = useState<string | null>(null)
 
-  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-
   // 获取风电预测数据
   const fetchWindData = useCallback(async () => {
     setWindLoading(true)
     setWindError(null)
     try {
-      const response = await fetch(`${API_BASE}/api/wind-generation`)
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
-      const data = await response.json()
+      const data = await apiService.getWindGeneration()
       setWindData(data)
     } catch (err) {
       setWindError(err instanceof Error ? err.message : '获取风电数据失败')
     } finally {
       setWindLoading(false)
     }
-  }, [API_BASE])
+  }, [])
 
   // 获取功率曲线
   const fetchPowerCurve = useCallback(async () => {
     setCurveLoading(true)
     try {
-      const response = await fetch(`${API_BASE}/api/wind-generation/power-curve`)
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
-      const data = await response.json()
+      const data = await apiService.getWindPowerCurve()
       setPowerCurve(data)
     } catch (err) {
       console.error('获取功率曲线失败:', err)
     } finally {
       setCurveLoading(false)
     }
-  }, [API_BASE])
+  }, [])
 
   useEffect(() => {
     fetchWindData()
@@ -168,7 +123,6 @@ const WindGeneration: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in relative">
       {/* 粒子背景 */}
-      <ParticleField count={30} opacity={0.25} color="#06B6D4" />
 
       {/* 页面标题 */}
       <div className="page-header-centered relative z-10">

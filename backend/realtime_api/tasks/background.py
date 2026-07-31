@@ -24,6 +24,24 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================================
+# 系统指标采样（同步函数，放入线程池执行，避免阻塞事件循环）
+# ============================================================================
+
+def _sample_system_stats() -> dict:
+    """同步采集系统指标（psutil 为同步阻塞 API，需在线程中调用）"""
+    import psutil
+    return {
+        'cpu_percent': psutil.cpu_percent(interval=1),
+        'cpu_count': psutil.cpu_count(),
+        'memory_percent': psutil.virtual_memory().percent,
+        'memory_used_gb': round(psutil.virtual_memory().used / 1024**3, 3),
+        'memory_available_gb': round(psutil.virtual_memory().available / 1024**3, 3),
+        'disk_percent': psutil.disk_usage('/').percent,
+        'process_count': len(psutil.pids()),
+    }
+
+
+# ============================================================================
 # 定时任务定义
 # ============================================================================
 
@@ -31,19 +49,16 @@ async def _periodic_system_metrics():
     """每 5 分钟采集一次系统指标并写入 system_metrics 表"""
     while True:
         try:
-            import psutil
-            sys_cpu = psutil.cpu_percent(interval=1)
-            mem = psutil.virtual_memory()
-            disk = psutil.disk_usage('/')
+            stats = await asyncio.to_thread(_sample_system_stats)
             await SystemMetricsCRUD.insert_metrics(
-                cpu_percent=sys_cpu,
-                cpu_count=psutil.cpu_count(),
-                memory_percent=mem.percent,
-                memory_used_gb=round(mem.used / 1024**3, 3),
-                memory_available_gb=round(mem.available / 1024**3, 3),
+                cpu_percent=stats['cpu_percent'],
+                cpu_count=stats['cpu_count'],
+                memory_percent=stats['memory_percent'],
+                memory_used_gb=stats['memory_used_gb'],
+                memory_available_gb=stats['memory_available_gb'],
                 gpu_available=False,
-                disk_usage_percent=disk.percent,
-                process_count=len(psutil.pids()),
+                disk_usage_percent=stats['disk_percent'],
+                process_count=stats['process_count'],
             )
         except ImportError:
             pass  # psutil 未安装则跳过
@@ -61,9 +76,10 @@ async def _periodic_performance_alerts():
     """每 5 分钟检查系统指标并生成性能预警"""
     while True:
         try:
-            import psutil
-            cpu = psutil.cpu_percent(interval=1)
-            mem = psutil.virtual_memory()
+            stats = await asyncio.to_thread(_sample_system_stats)
+            cpu = stats['cpu_percent']
+            mem_percent = stats['memory_percent']
+            disk_percent = stats['disk_percent']
 
             # CPU 使用率超过 90%
             if cpu > 90:
@@ -77,25 +93,24 @@ async def _periodic_performance_alerts():
                 )
 
             # 内存使用率超过 90%
-            if mem.percent > 90:
+            if mem_percent > 90:
                 await PerformanceAlertsCRUD.insert_alert(
                     alert_type='warning',
                     metric_name='memory_percent',
-                    current_value=mem.percent,
+                    current_value=mem_percent,
                     threshold=90.0,
-                    message=f'内存使用率过高: {mem.percent:.1f}%',
+                    message=f'内存使用率过高: {mem_percent:.1f}%',
                     severity=2,
                 )
 
             # 磁盘使用率超过 85%
-            disk = psutil.disk_usage('/')
-            if disk.percent > 85:
+            if disk_percent > 85:
                 await PerformanceAlertsCRUD.insert_alert(
                     alert_type='critical',
                     metric_name='disk_usage_percent',
-                    current_value=disk.percent,
+                    current_value=disk_percent,
                     threshold=85.0,
-                    message=f'磁盘使用率过高: {disk.percent:.1f}%',
+                    message=f'磁盘使用率过高: {disk_percent:.1f}%',
                     severity=1,
                 )
         except ImportError:

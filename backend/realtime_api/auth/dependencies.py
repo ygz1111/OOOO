@@ -10,6 +10,7 @@
 author: 毕业设计项目
 """
 
+from realtime_api.utils.background import fire_and_forget
 import logging
 import time
 import asyncio
@@ -335,7 +336,7 @@ def log_operation(
                             except Exception:
                                 pass  # 日志失败不应影响业务
                         
-                        asyncio.create_task(save_log())
+                        fire_and_forget(save_log, "operation_log")
                         
                     except Exception:
                         pass  # 日志异常不应抛出

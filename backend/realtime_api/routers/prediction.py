@@ -11,6 +11,7 @@
 作者: 毕业设计项目
 """
 
+from realtime_api.utils.background import fire_and_forget
 import uuid
 import time
 import asyncio
@@ -172,7 +173,7 @@ async def predict_load(
                 except Exception as e:
                     logger.warning(f"模型性能入库失败（非阻塞）: {e}")
 
-            asyncio.create_task(_persist_model_performance())
+            fire_and_forget(_persist_model_performance, "model_performance")
         except Exception as db_error:
             logger.warning(f"保存预测结果到数据库失败（非阻塞）: {db_error}")
 

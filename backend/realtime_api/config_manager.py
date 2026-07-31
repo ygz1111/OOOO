@@ -29,6 +29,26 @@ class ConfigManager:
     def __init__(self):
         if not self._config:
             self._load_config()
+            self._load_locations()
+
+    def _load_locations(self):
+        """从 locations.yaml 加载气象站点（与 app_config.yaml 同目录）
+
+        站点数据统一维护在 locations.yaml；app_config.yaml 仅含非站点配置。
+        """
+        self._locations = []
+        try:
+            _backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            loc_file = os.path.join(_backend_dir, 'config', 'locations.yaml')
+            with open(loc_file, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+            self._locations = [
+                loc for loc in data.get('locations', [])
+                if loc.get('active', True)
+            ]
+            logging.info(f"✅ 气象站点加载成功: {len(self._locations)} 个站点")
+        except Exception as e:
+            logging.warning(f"locations.yaml 加载失败: {e}")
     
     def _load_config(self):
         """加载配置文件"""
@@ -144,8 +164,8 @@ class ConfigManager:
         return self.get('api', {})
     
     def get_weather_locations(self) -> List[Dict[str, Any]]:
-        """获取气象站点配置"""
-        return self.get('weather.locations', [])
+        """获取气象站点配置（来自 locations.yaml）"""
+        return self._locations
     
     def get_openmeteo_config(self) -> Dict[str, Any]:
         """获取OpenMeteo配置"""

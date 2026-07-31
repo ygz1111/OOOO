@@ -5,7 +5,6 @@ import { apiService } from '../services/api'
 import type { SolarGenerationResponse, SolarModelInfoResponse } from '../types'
 import MetricCard from '../components/MetricCard'
 import { MetricCardSkeleton } from '../components/Skeleton'
-import ParticleField from '../components/ui/ParticleField'
 
 const SolarGeneration: React.FC = () => {
   const { prediction, weather } = useApi()
@@ -109,7 +108,6 @@ const SolarGeneration: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in relative">
       {/* 粒子背景 */}
-      <ParticleField count={30} opacity={0.25} color="#F59E0B" />
 
       {/* 页面标题 */}
       <div className="page-header-centered relative z-10">

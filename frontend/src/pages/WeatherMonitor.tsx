@@ -4,7 +4,6 @@ import WeatherCard from '../components/WeatherCard'
 import WeatherMap from '../components/WeatherMap'
 import { CardSkeleton, Spinner, ErrorBanner } from '../components/Skeleton'
 import { Cloud, MapPin, RefreshCw, Wind, Navigation, Thermometer, MousePointerClick } from 'lucide-react'
-import ParticleField from '../components/ui/ParticleField'
 
 const WeatherMonitor: React.FC = () => {
   const { weather, isLoading, errors, loadWeather } = useApi()
@@ -33,7 +32,6 @@ const WeatherMonitor: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in relative">
       {/* 粒子背景 */}
-      <ParticleField count={30} opacity={0.25} color="#10B981" />
 
       {/* 页面标题 — 居中 */}
       <div className="page-header-centered relative z-10">

@@ -5,7 +5,6 @@ import LoadForecastChart from '../components/LoadForecastChart'
 import { ErrorBanner, MetricCardSkeleton } from '../components/Skeleton'
 import { AnimatedNumber, StaggerReveal } from '../components/ui/Animations'
 import { RefreshButton } from '../components/ui/MicroInteractions'
-import ParticleField from '../components/ui/ParticleField'
 import {
   TrendingUp,
   Zap,
@@ -115,7 +114,6 @@ const LoadForecast: React.FC = () => {
   return (
     <div className="space-y-6 page-transition relative">
       {/* 粒子背景 */}
-      <ParticleField count={30} opacity={0.25} />
 
       {/* 页面标题 — 居中 */}
       <div className="page-header-centered relative z-10">

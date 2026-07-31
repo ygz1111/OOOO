@@ -39,6 +39,7 @@ API 端点:
 作者: 毕业设计项目
 """
 
+from realtime_api.utils.background import fire_and_forget
 import os
 import sys
 import time
@@ -233,6 +234,17 @@ app.add_middleware(
 # 认证中间件
 app.add_middleware(AuthMiddleware)
 
+# Prometheus 指标采集（轻量中间件 + /metrics 端点）
+from realtime_api.metrics import metrics_middleware, metrics_endpoint
+
+@app.middleware("http")
+async def prometheus_metrics_middleware(request: Request, call_next):
+    return await metrics_middleware(request, call_next)
+
+@app.get("/metrics", include_in_schema=False)
+async def prometheus_metrics():
+    return await metrics_endpoint()
+
 
 @app.middleware("http")
 async def request_logging_middleware(request: Request, call_next):
@@ -301,7 +313,7 @@ async def request_logging_middleware(request: Request, call_next):
         except Exception as e:
             logger.warning(f"API日志入库失败（非阻塞）: {e}")
 
-    asyncio.create_task(_persist_api_log())
+    fire_and_forget(_persist_api_log, "api_log")
 
     return response
 

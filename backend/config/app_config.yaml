@@ -23,39 +23,7 @@ api:
 # 气象数据配置
 # ============================================================================
 weather:
-  # 新英格兰地区气象站点
-  locations:
-    - name: "Boston"
-      lat: 42.3601
-      lon: -71.0589
-      description: "波士顿气象站"
-      
-    - name: "New York"
-      lat: 40.7128
-      lon: -74.0060
-      description: "纽约气象站"
-      
-    - name: "Philadelphia"
-      lat: 39.9526
-      lon: -75.1652
-      description: "费城气象站"
-      
-    - name: "Portland"
-      lat: 43.6591
-      lon: -70.2568
-      description: "波特兰气象站"
-      
-    - name: "Albany"
-      lat: 42.6526
-      lon: -73.7562
-      description: "奥尔巴尼气象站"
-      
-    - name: "Hartford"
-      lat: 41.7637
-      lon: -72.6851
-      description: "哈特福德气象站"
-      
-  # Open-Meteo API配置
+  # 气象站点统一维护在 locations.yaml（新英格兰 6 城市），此处仅保留 Open-Meteo API 配置
   openmeteo:
     base_url: "https://api.open-meteo.com/v1"
     forecast_days: 2

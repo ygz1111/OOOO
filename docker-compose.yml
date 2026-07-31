@@ -44,16 +44,16 @@ services:
       - CACHE_TTL=300
       
     volumes:
-      # 数据持久化
-      - ./backend/models:/app/models:ro
-      - ./logs:/app/logs
-      - ./data:/app/data:ro
-      
-      # 配置文件
-      - ./backend/config:/app/config:ro
-      
-      # 后端代码
+      # 模型权重（训练产物，只读）
+      - ./backend/models:/app/backend/models:ro
+      # 日志（可写）
+      - ./logs:/app/backend/logs
+      # 配置（只读，覆盖镜像内同名文件）
+      - ./backend/config:/app/backend/config:ro
+      # 后端代码（开发热更新；镜像已 COPY 相同内容）
       - ./backend:/app/backend:ro
+      # 数据目录（只读）
+      - ./data:/app/data:ro
     
     depends_on:
       mysql:

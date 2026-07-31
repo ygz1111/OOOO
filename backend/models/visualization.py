@@ -41,6 +41,8 @@ class PaperVisualizer:
         """
         创建四模型对比图 (论文核心图表)
         """
+        # 过滤非模型条目（如顶层 feature_names 元数据）
+        results_dict = {k: v for k, v in results_dict.items() if isinstance(v, dict)}
         fig = plt.figure(figsize=(20, 16))
         gs = GridSpec(3, 3, figure=fig, wspace=0.3, hspace=0.4)
         
@@ -542,7 +544,9 @@ class PaperVisualizer:
         """
         生成论文所需的所有图表
         """
-        
+        # 过滤非模型条目（如顶层 feature_names 元数据）
+        results_dict = {k: v for k, v in results_dict.items() if isinstance(v, dict)}
+
         if model_names is None:
             model_names = list(results_dict.keys())
         

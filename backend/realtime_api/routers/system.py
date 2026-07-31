@@ -13,6 +13,7 @@
 作者: 毕业设计项目
 """
 
+from realtime_api.utils.background import fire_and_forget
 import time
 import asyncio
 import logging
@@ -100,7 +101,7 @@ async def get_system_status():
         except Exception as e:
             logger.warning(f"系统指标入库失败（非阻塞）: {e}")
 
-    asyncio.create_task(_persist_system_metrics())
+    fire_and_forget(_persist_system_metrics, "system_metrics")
 
     return SystemStatusResponse(
         status=health_status,

@@ -90,7 +90,7 @@ export function CyberMatrixCanvas({ intensity = 1 }: CyberMatrixCanvasProps) {
 
       for (let i = 0; i < Math.min(15, count); i++) {
         const from = Math.floor(Math.random() * nodes.length);
-        let to = Math.floor(Math.random() * nodes.length);
+        const to = Math.floor(Math.random() * nodes.length);
         if (from !== to) {
           pulses.push({
             fromIndex: from,

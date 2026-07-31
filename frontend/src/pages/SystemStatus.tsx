@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useApi } from '../contexts/ApiContext'
+import apiService from '../services/api'
 import { Spinner } from '../components/Skeleton'
 import {
   Activity,
@@ -13,7 +14,6 @@ import {
   Zap,
   Check,
 } from 'lucide-react'
-import ParticleField from '../components/ui/ParticleField'
 
 // ── 迷你 Sparkline 组件 ──
 const Sparkline: React.FC<{ data: number[]; color?: string }> = ({ data, color = '#3B82F6' }) => {
@@ -128,8 +128,7 @@ const SystemStatus: React.FC = () => {
     setLatencyResult(null)
     try {
       const start = Date.now()
-      const baseUrl = (import.meta as any).env?.VITE_API_BASE_URL || '/api'
-      await fetch(`${baseUrl}/health`, { method: 'GET' })
+      await apiService.getHealth()
       const elapsed = Date.now() - start
       setLatencyResult(elapsed)
     } catch {
@@ -153,7 +152,6 @@ const SystemStatus: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in relative">
       {/* 粒子背景 */}
-      <ParticleField count={30} opacity={0.25} />
 
       {/* 页面标题 — 居中 */}
       <div className="page-header-centered relative z-10">

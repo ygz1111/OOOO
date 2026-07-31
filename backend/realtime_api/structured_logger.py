@@ -10,6 +10,7 @@
 
 import json
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 import sys
 import time
@@ -300,7 +301,10 @@ class StructuredLoggingManager:
             log_dir = Path(log_path).parent
             log_dir.mkdir(parents=True, exist_ok=True)
             
-            file_handler = logging.FileHandler(log_path, encoding='utf-8')
+            # 日志轮转：单文件 10MB，保留 5 个备份
+            file_handler = RotatingFileHandler(
+                log_path, maxBytes=10 * 1024 * 1024, backupCount=5, encoding='utf-8'
+            )
             file_handler.setLevel(logging.DEBUG)  # 文件记录所有级别
             file_formatter = StructuredJSONFormatter()
             file_handler.setFormatter(file_formatter)
@@ -310,7 +314,9 @@ class StructuredLoggingManager:
         error_log_path = Path('logs/error.log')
         error_log_path.parent.mkdir(exist_ok=True)
         
-        error_handler = logging.FileHandler(error_log_path, encoding='utf-8')
+        error_handler = RotatingFileHandler(
+            error_log_path, maxBytes=10 * 1024 * 1024, backupCount=5, encoding='utf-8'
+        )
         error_handler.setLevel(logging.ERROR)
         error_formatter = StructuredJSONFormatter()
         error_handler.setFormatter(error_formatter)
@@ -320,7 +326,9 @@ class StructuredLoggingManager:
         access_log_path = Path('logs/access.log')
         access_log_path.parent.mkdir(exist_ok=True)
         
-        access_handler = logging.FileHandler(access_log_path, encoding='utf-8')
+        access_handler = RotatingFileHandler(
+            access_log_path, maxBytes=10 * 1024 * 1024, backupCount=5, encoding='utf-8'
+        )
         access_handler.setLevel(logging.INFO)
         access_formatter = StructuredJSONFormatter()
         access_handler.setFormatter(access_formatter)

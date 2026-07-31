@@ -13,7 +13,9 @@ import {
   DriftDetection,
   DataQualityStats,
   SolarGenerationResponse,
-  SolarModelInfoResponse
+  SolarModelInfoResponse,
+  WindGenerationResponse,
+  PowerCurveResponse
 } from '../types'
 import { LoginRequest, RegisterRequest, TokenResponse } from '../types/auth'
 
@@ -196,6 +198,21 @@ class ApiService {
   /** 光伏 ML 模型信息 */
   async getSolarModelInfo(): Promise<SolarModelInfoResponse> {
     return this.get<SolarModelInfoResponse>('/solar-generation/model-info')
+  }
+
+  /** 风电预测 */
+  async getWindGeneration(): Promise<WindGenerationResponse> {
+    return this.get<WindGenerationResponse>('/wind-generation')
+  }
+
+  /** 风电功率曲线 */
+  async getWindPowerCurve(): Promise<PowerCurveResponse> {
+    return this.get<PowerCurveResponse>('/wind-generation/power-curve')
+  }
+
+  /** 健康检查（公开端点） */
+  async getHealth(): Promise<any> {
+    return this.get('/health')
   }
 
   // ===========================================================================

@@ -10,6 +10,7 @@
 作者: 毕业设计项目
 """
 
+from realtime_api.utils.background import fire_and_forget
 import asyncio
 import logging
 from datetime import timedelta
@@ -106,7 +107,7 @@ async def get_current_weather(
             if saved_count:
                 logger.info(f"气象数据已入库 {saved_count}/{len(stations)} 个站点")
 
-        asyncio.create_task(_persist_weather())
+        fire_and_forget(_persist_weather, "weather")
 
         # 区域平均
         regional_avg = {}

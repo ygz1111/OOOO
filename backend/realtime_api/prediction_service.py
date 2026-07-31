@@ -525,33 +525,34 @@ class ModelInferenceService:
         normalized_predictions = {}
         model_times = {}
 
-        # 逐模型推理
-        for model_name, model in self.models.items():
-            model_start = time.perf_counter()
+        # 并行推理各模型（CPU 多核时显著加速；各模型无共享状态，线程安全）
+        from concurrent.futures import ThreadPoolExecutor
 
+        def _predict_single(name_model):
+            model_name, model = name_model
+            model_start = time.perf_counter()
             try:
                 with torch.no_grad():
                     pred = model(X)
-
-                # 检查输出
                 if torch.isnan(pred).any():
                     logger.warning(f"  {model_name} 输出包含NaN，替换为0")
                     pred = torch.nan_to_num(pred, nan=0.0)
-
                 if torch.isinf(pred).any():
                     logger.warning(f"  {model_name} 输出包含Inf，替换为0")
                     pred = torch.nan_to_num(pred, posinf=0.5, neginf=0.0)
-
-                normalized_predictions[model_name] = pred.cpu().numpy()
-                model_times[model_name] = (time.perf_counter() - model_start) * 1000
-
-                logger.debug(
-                    f"  {model_name}: {model_times[model_name]:.1f}ms, "
-                    f"output={pred.shape}"
-                )
-
+                return model_name, pred.cpu().numpy(), \
+                    (time.perf_counter() - model_start) * 1000, None
             except Exception as e:
-                logger.error(f"  ❌ {model_name} 推理失败: {e}")
+                return model_name, None, 0.0, e
+
+        with ThreadPoolExecutor(max_workers=max(1, len(self.models))) as executor:
+            raw_results = list(executor.map(_predict_single, self.models.items()))
+
+        normalized_predictions = {}
+        model_times = {}
+        for model_name, pred, elapsed, err in raw_results:
+            if err is not None:
+                logger.error(f"  ❌ {model_name} 推理失败: {err}")
                 # 使用其他模型的平均值作为替代
                 if normalized_predictions:
                     avg_pred = np.mean(
@@ -560,7 +561,13 @@ class ModelInferenceService:
                     normalized_predictions[model_name] = avg_pred
                     model_times[model_name] = 0.0
                 else:
-                    raise ModelInferenceError(f"{model_name} 推理失败且无替代: {e}")
+                    raise ModelInferenceError(f"{model_name} 推理失败且无替代: {err}")
+            else:
+                normalized_predictions[model_name] = pred
+                model_times[model_name] = elapsed
+                logger.debug(
+                    f"  {model_name}: {elapsed:.1f}ms, output={pred.shape}"
+                )
 
         # 加权集成
         ensemble_normalized = np.zeros_like(

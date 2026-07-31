@@ -30,7 +30,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 # 导入配置管理器
-from .config import get_config, WeatherLocation
+from realtime_api.config_manager import config_manager
 
 
 # ============================================================================
@@ -185,8 +185,11 @@ class OpenMeteoClient:
         if locations is None:
             # 从配置管理器加载默认站点
             try:
-                config = get_config()
-                self.locations = list(config.locations)
+                raw_locations = config_manager.get_weather_locations()
+                self.locations = [
+                    WeatherLocation(name=loc["name"], lat=loc["lat"], lon=loc["lon"])
+                    for loc in raw_locations
+                ]
                 if not self.locations:
                     raise ValueError("配置文件中没有可用的气象站点")
             except Exception as e:
