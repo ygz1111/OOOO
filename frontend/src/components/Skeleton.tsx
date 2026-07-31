@@ -46,24 +46,6 @@ export const ChartSkeleton: React.FC<{ height?: number }> = ({ height = 300 }) =
   </div>
 )
 
-// 骨架屏 - 表格行
-export const TableSkeleton: React.FC<{ rows?: number; cols?: number }> = ({ rows = 5, cols = 5 }) => (
-  <div className="animate-fade-in">
-    <div className="flex gap-4 mb-4 pb-2 border-b border-dark-600">
-      {Array.from({ length: cols }).map((_, i) => (
-        <div key={i} className="skeleton h-4 flex-1"></div>
-      ))}
-    </div>
-    {Array.from({ length: rows }).map((_, r) => (
-      <div key={r} className="flex gap-4 py-3 border-b border-dark-700/60">
-        {Array.from({ length: cols }).map((_, c) => (
-          <div key={c} className="skeleton h-4 flex-1"></div>
-        ))}
-      </div>
-    ))}
-  </div>
-)
-
 // 通用加载旋转器
 export const Spinner: React.FC<{ size?: 'sm' | 'md' | 'lg'; className?: string }> = ({
   size = 'md',

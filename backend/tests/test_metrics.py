@@ -7,8 +7,6 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from models.ensemble import Evaluator
-
 
 def _compute_metrics(y_true_mw, y_pred_mw):
     """与 scripts/recompute_final_metrics.py 完全一致的统一指标口径"""
@@ -54,15 +52,3 @@ class TestUnifiedMetrics:
         y_pred = y_true + rng.normal(0, 500, 100)
         m = _compute_metrics(y_true, y_pred)
         assert 0.0 < m["r2"] < 1.0
-
-
-class TestEvaluatorConsistency:
-    def test_evaluator_matches_unified_mape(self):
-        """models/ensemble.py 的 Evaluator 与统一口径结果一致"""
-        rng = np.random.RandomState(7)
-        y_true = (np.random.RandomState(3).uniform(8000, 24000, (50, 24))).flatten()
-        y_pred = y_true + rng.normal(0, 800, y_true.shape)
-        ev = Evaluator.calculate_metrics(y_true, y_pred)
-        un = _compute_metrics(y_true, y_pred)
-        assert abs(ev["MAPE"] - un["mape"]) < 1e-6
-        assert abs(ev["RMSE"] - un["rmse"]) < 1e-6

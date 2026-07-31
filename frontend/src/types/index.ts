@@ -75,23 +75,6 @@ export interface MetricCardProps {
   className?: string
 }
 
-export interface ChartDataPoint {
-  timestamp: string
-  [key: string]: string | number
-}
-
-export interface ForecastMetrics {
-  mape: number
-  rmse: number
-  mae: number
-  r2: number
-}
-
-export interface TimeRange {
-  start: string
-  end: string
-}
-
 // ========================================
 // 历史分析相关类型
 // ========================================

@@ -38,7 +38,8 @@ import torch.nn as nn
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROJECT_ROOT = os.path.dirname(BACKEND_DIR)
 MODELS_DIR = os.path.join(BACKEND_DIR, "models")
-OUTPUTS_DIR = os.path.join(PROJECT_ROOT, "outputs")
+# 模型权重实际存放位置（train_four_models.py 与 recompute_final_metrics.py 均写入此处）
+MODEL_WEIGHTS_DIR = os.path.join(MODELS_DIR, "models")
 PROCESSED_DIR = os.path.join(PROJECT_ROOT, "processed")
 
 # 添加模型路径
@@ -226,12 +227,12 @@ class ModelInferenceService:
         初始化推理服务
 
         Args:
-            models_dir: 模型文件目录 (默认 outputs/)
+            models_dir: 模型文件目录 (默认 backend/models/models/)
             device: 推理设备 ('cpu' or 'cuda'，默认自动选择)
             use_normalizer: 是否加载归一化适配器
             scalers_path: Scaler文件路径
         """
-        self.models_dir = models_dir or OUTPUTS_DIR
+        self.models_dir = models_dir or MODEL_WEIGHTS_DIR
 
         # 设备选择
         if device is None:
