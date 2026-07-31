@@ -1169,31 +1169,6 @@
   }
 }
 
-/* ── Magic UI 风格动画 ── */
-
-/* BorderBeam: 沿矩形边框循环移动的光束 */
-@keyframes border-beam-anim {
-  0% {
-    offset-distance: 0%;
-  }
-  100% {
-    offset-distance: 100%;
-  }
-}
-
-/* ShineBorder: 背景位置循环 */
-@keyframes shine-border {
-  0% {
-    background-position: 0% 0%;
-  }
-  50% {
-    background-position: 100% 100%;
-  }
-  100% {
-    background-position: 0% 0%;
-  }
-}
-
 /* 电网数据流动效 - 左侧背景水平流光线 */
 @keyframes data-flow-h {
   0% {

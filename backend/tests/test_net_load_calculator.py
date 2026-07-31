@@ -25,7 +25,7 @@ import math
 import numpy as np
 from datetime import datetime, timedelta
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from realtime_api.net_load_calculator import (
     NetLoadCalculator,
@@ -236,7 +236,7 @@ class TestCurtailment(unittest.TestCase):
         load, pv = make_mock_load_pv(pv_peak=5000)
         result = calc.calculate(load, pv)
         for h in result.hourly:
-            self.assertGreaterEqual(h.curtailed_pv_mw, 0)
+            self.assertGreaterEqual(h.curtailed_re_mw, 0)
 
 
 # ============================================================================
@@ -386,7 +386,7 @@ class TestResultFormat(unittest.TestCase):
         self.assertIn('load_forecast_mw', dir(h))
         self.assertIn('pv_generation_mw', dir(h))
         self.assertIn('net_load_mw', dir(h))
-        self.assertIn('curtailed_pv_mw', dir(h))
+        self.assertIn('curtailed_re_mw', dir(h))
         self.assertIn('storage_charge_mw', dir(h))
         self.assertIn('storage_discharge_mw', dir(h))
         self.assertIn('adjusted_net_load_mw', dir(h))

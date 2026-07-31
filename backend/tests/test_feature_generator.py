@@ -26,7 +26,7 @@ import pickle
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from realtime_api.feature_generator import (
     FeatureGenerator,
@@ -104,7 +104,7 @@ class TestFeatureConsistency(unittest.TestCase):
     def test_feature_list_matches_training(self):
         """测试特征列表与训练配置完全一致"""
         config_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
             "processed", "step4_feature_config.pkl"
         )
 

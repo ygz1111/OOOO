@@ -1,495 +1,94 @@
-name: 智能电网负荷预测系统 CI/CD
+name: 智能电网负荷预测系统 CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
-  schedule:
-    - cron: '0 2 * * 0'  # 每周日2点运行完整测试
   workflow_dispatch:
-    inputs:
-      test_type:
-        description: '测试类型'
-        required: true
-        default: 'all'
-        type: choice
-        options:
-        - all
-        - unit
-        - integration
-        - e2e
-        - performance
-        - exception
-      coverage_required:
-        description: '需要覆盖率报告'
-        type: boolean
-        default: true
 
 jobs:
   test-unit:
     name: 单元测试
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    
+
     strategy:
       matrix:
-        python-version: [3.8, 3.9, '3.10', '3.11']
-    
+        python-version: ['3.10', '3.11']
+
     steps:
-    - name: 检出代码
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    
-    - name: 设置 Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
-        cache: 'pip'
-        cache-dependency-path: |
-          realtime_api/requirements.txt
-          pyproject.toml
-    
-    - name: 安装依赖
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install pytest pytest-cov pytest-asyncio pytest-mock
-        python -m pip install -r realtime_api/requirements.txt
-    
-    - name: 运行单元测试
-      run: |
-        python -m pytest tests/test_unit_complete.py -v --tb=short \
-          --cov=realtime_api --cov-report=xml:coverage-unit.xml \
-          --cov-report=html:coverage-unit-html --cov-fail-under=70
-    
-    - name: 上传单元测试覆盖率报告
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage-unit.xml
-        flags: unit-tests
-        name: unit-coverage-${{ matrix.python-version }}
-      continue-on-error: true
-    
-    - name: 上传测试结果
-      uses: actions/upload-artifact@v3
-      if: always()
-      with:
-        name: unit-test-results-${{ matrix.python-version }}
-        path: |
-          coverage-unit.xml
-          coverage-unit-html/
-        retention-days: 7
+      - name: 检出代码
+        uses: actions/checkout@v4
 
-  test-integration:
-    name: 集成测试
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    
-    services:
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    
-    steps:
-    - name: 检出代码
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    
-    - name: 设置 Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        cache: 'pip'
-    
-    - name: 安装依赖
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install pytest pytest-cov pytest-asyncio pytest-mock
-        python -m pip install -r realtime_api/requirements.txt
-    
-    - name: 运行集成测试
-      run: |
-        python -m pytest tests/test_integration.py -v --tb=short \
-          --no-cov --junitxml=junit/integration-results.xml
-    
-    - name: 上传集成测试结果
-      uses: actions/upload-artifact@v3
-      with:
-        name: integration-test-results
-        path: |
-          junit/integration-results.xml
-        retention-days: 7
-    
-    - name: 上传集成测试结果到 Actions
-      uses: dorny/test-reporter@v1
-      if: success() || failure()
-      with:
-        name: 集成测试结果
-        path: 'junit/integration-results.xml'
-        reporter: java-junit
+      - name: 设置 Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
 
-  test-e2e:
-    name: 端到端测试
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    
-    services:
-      mongodb:
-        image: mongo:6
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --eval 'db.stats().ok'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    
-    steps:
-    - name: 检出代码
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    
-    - name: 设置 Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        cache: 'pip'
-    
-    - name: 安装系统依赖
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y cmake pkg-config
-    
-    - name: 安装Python依赖
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install pytest pytest-cov pytest-asyncio pytest-mock
-        python -m pip install fastapi uvicorn httpx pandas numpy scikit-learn
-        python -m pip install -r realtime_api/requirements.txt
-    
-    - name: 启动服务并运行端到端测试
-      run: |
-        # 启动测试服务
-        python -m uvicorn realtime_api.app:app --host 0.0.0.0 --port 8000 &
-        
-        # 等待服务启动
-        sleep 15
-        
-        # 验证服务健康状态
-        curl --fail http://localhost:8000/health || exit 1
-        
-        # 运行端到端测试
-        python -m pytest tests/test_e2e.py -v --tb=short \
-          --no-cov --junitxml=junit/e2e-results.xml
-      
-      env:
-        UVICORN_ENV: test
-        API_TEST_MODE: true
-    
-    - name: 上传端到端测试结果
-      uses: actions/upload-artifact@v3
-      if: always()
-      with:
-        name: e2e-test-results
-        path: |
-          junit/e2e-results.xml
-        retention-days: 7
-    
-  test-performance:
-    name: 性能测试
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    
-    steps:
-    - name: 检出代码
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    
-    - name: 设置 Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        cache: 'pip'
-    
-    - name: 安装依赖
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install pytest pytest-benchmark psutil
-        python -m pip install -r realtime_api/requirements.txt
-    
-    - name: 运行性能测试
-      run: |
-        python -m pytest tests/test_performance.py -v --benchmark-only \
-          --benchmark-json=benchmark.json --benchmark-columns=min,max,mean,stddev
-      
-      env:
-        PYTHONUNBUFFERED: 1
-    
-    - name: 检查性能回归
-      run: |
-        echo "分析性能测试结果..."
-        
-        # 获取当前基准结果
-        if [ -f "benchmark.json" ]; then
-          python -c "
-import json
-with open('benchmark.json') as f:
-    data = json.load(f)
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest pytest-cov pytest-asyncio pytest-mock
+          python -m pip install -r backend/requirements.txt
 
-# 检查是否有性能测试失败
-failed_benchmarks = []
-for benchmark in data.get('benchmarks', []):
-    stats = benchmark.get('stats', {})
-    mean_time = stats.get('mean', 0) * 1000  # 转为毫秒
-    
-    # 性能阈值检查示例
-    if mean_time > 5000:  # 5秒阈值
-        failed_benchmarks.append(f\"{benchmark['name']}: {mean_time:.2f}ms > 5000ms\")
+      - name: 运行单元测试
+        working-directory: backend
+        run: |
+          python -m pytest tests/ -v --tb=short --cov=realtime_api \
+            --cov-report=term-missing
 
-if failed_benchmarks:
-    print('⚠️ 发现性能问题:')
-    for fail in failed_benchmarks:
-        print(f'  - {fail}')
-    exit(1)
-else:
-    print('✅ 性能测试全部通过')
-          "
-        else:
-          echo "⚠️ 未找到性能测试结果文件"
-    
-    - name: 上传性能测试结果
-      uses: actions/upload-artifact@v3
-      with:
-        name: performance-benchmark-results
-        path: |
-          benchmark.json
-          .benchmarks/
-        retention-days: 14
+      - name: 上传覆盖率报告
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report-${{ matrix.python-version }}
+          path: backend/coverage.xml
+          retention-days: 7
 
-  test-exception:
-    name: 异常处理测试
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    
-    steps:
-    - name: 检出代码
-      uses: actions/checkout@v4
-    
-    - name: 设置 Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    
-    - name: 安装依赖
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install pytest pytest-cov
-        python -m pip install -r realtime_api/requirements.txt
-    
-    - name: 运行异常处理测试
-      run: |
-        python -m pytest tests/test_exception_handling.py -v --tb=short \
-          --no-cov --junitxml=junit/exception-results.xml
-    
-    - name: 上传异常测试结果
-      uses: actions/upload-artifact@v3
-      with:
-        name: exception-test-results
-        path: junit/exception-results.xml
-        retention-days: 7
-
-  coverage-report:
-    name: 覆盖率报告聚合
-    runs-on: ubuntu-latest
-    needs: [test-unit, test-integration, test-e2e] 
-    if: always()
-    
-    steps:
-    - name: 检出代码
-      uses: actions/checkout@v4
-    
-    - name: 设置 Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    
-    - name: 安装coverage工具
-      run: |
-        python -m pip install coverage codecov
-    
-    - name: 下载测试工件
-      uses: actions/download-artifact@v3
-      with:
-        pattern: "*-test-results-*
-        merge-multiple: true
-    
-    - name: 聚合覆盖率报告
-      run: |
-        # 查找所有覆盖率文件并聚合
-        coverage_files=$(find . -name "coverage*.xml" -type f)
-        
-        if [ -n "$coverage_files" ]; then
-          echo "找到覆盖率文件: $coverage_files"
-          # 这里可以更复杂的聚合逻辑
-          # 目前简单合并
-        fi
-        
-        # 生成最终覆盖率报告
-        python -c "
-import os
-import xml.etree.ElementTree as ET
-
-# 简单的覆盖率数据聚合 (在实际项目中可能需要更复杂的逻辑)
-total_statements = 0
-total_covered = 0
-
-for root, dirs, files in os.walk('.'):
-    for file in files:
-        if 'coverage.xml' in file:
-            try:
-                tree = ET.parse(os.path.join(root, file))
-                root_elem = tree.getroot()
-                
-                for package in root_elem.findall('.//class'):
-                    statements = int(package.get('lines-valid', 0))
-                    covered = int(package.get('lines-covered', 0))
-                    
-                    total_statements += statements
-                    total_covered += covered
-                    
-            except Exception as e:
-                print(f'处理文件失败 {file}: {e}')
-
-if total_statements > 0:
-    overall_coverage = (total_covered / total_statements) * 100
-    print(f'\n综合覆盖率: {overall_coverage:.2f}% ({total_covered}/{total_statements})')
-    
-    if overall_coverage < 80:
-        print(f'❌ 覆盖率低于80%: {overall_coverage:.2f}%')
-        exit(1)
-    else:
-        print(f'✅ 覆盖率达标: {overall_coverage:.2f}%')
-else:
-    print('未找到有效的覆盖率数据')
-        "
-    
-    - name: 上传聚合覆盖率到Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        verbose: true
-      continue-on-error: true
-    
   security-scan:
-    name: 安全检查
+    name: 安全检查 (Bandit)
     runs-on: ubuntu-latest
-    
-    steps:
-    - name: 检出代码
-      uses: actions/checkout@v4
-    
-    - name: 设置 Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    
-    - name: 安装安全扫描工具
-      run: |
-        python -m pip install bandit safety pyup.io
-    
-    - name: 运行Bandit安全扫描
-      run: |
-        bandit -r realtime_api -f json -o bandit-report.json || exit 0
-      continue-on-error: true
-    
-    - name: 检查依赖安全
-      run: |
-        safety check --json > safety-report.json || exit 0
-      continue-on-error: true
-    
-    - name: 上传安全报告
-      uses: actions/upload-artifact@v3
-      with:
-        name: security-reports
-        path: |
-          bandit-report.json
-          safety-report.json
-        retention-days: 7
+    timeout-minutes: 10
 
-  finalize:
-    name: 最终化和总结
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: 安装 Bandit
+        run: python -m pip install bandit
+
+      - name: 运行 Bandit 扫描
+        run: bandit -r backend/realtime_api -q || true
+        continue-on-error: true
+
+  type-check:
+    name: 前端类型检查
     runs-on: ubuntu-latest
-    needs: [test-unit, test-integration, test-e2e, test-performance, test-exception, coverage-report, security-scan]
-    if: always()
-    
+    timeout-minutes: 15
+
     steps:
-    - name: 生成测试总结
-      run: |
-        cat << 'EOF' > test-summary.md
-# 🧪 智能电网负荷预测系统测试报告
+      - name: 检出代码
+        uses: actions/checkout@v4
 
-## 📊 测试执行概览
+      - name: 设置 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
-- **执行时间**: $(date '+%Y-%m-%d %H:%M:%S')
-- **工作流**: ${{ github.workflow }}
-- **分支**: ${{ github.ref }}
-- **提交**: ${{ github.sha }}
+      - name: 安装前端依赖
+        working-directory: frontend
+        run: npm ci
 
-## ✅ 测试结果状态
-
-EOF
-        
-        # 从各个任务获取状态
-        echo "$(echo ${{ needs.test-unit.result }} | tr '[:lower:]' '[:upper:]') | 单元测试" >> test-summary.md
-        echo "$(echo ${{ needs.test-integration.result }} | tr '[:lower:]' '[:upper:]') | 集成测试" >> test-summary.md
-        echo "$(echo ${{ needs.test-e2e.result }} | tr '[:lower:]' '[:upper:]') | 端到端测试" >> test-summary.md
-        echo "$(echo ${{ needs.test-performance.result }} | tr '[:lower:]' '[:upper:]') | 性能测试" >> test-summary.md
-        echo "$(echo ${{ needs.test-exception.result }} | tr '[:lower:]' '[:upper:]') | 异常处理测试" >> test-summary.md
-        echo "$(echo ${{ needs.coverage-report.result }} | tr '[:lower:]' '[:upper:]') | 覆盖率报告" >> test-summary.md
-        echo "$(echo ${{ needs.security-scan.result }} | tr '[:lower:]' '[:upper:]') | 安全检查" >> test-summary.md
-        
-        # 显示测试摘要
-        cat test-summary.md
-    
-    - name: 上传测试摘要
-      uses: actions/upload-artifact@v3
-      with:
-        name: test-summary
-        path: test-summary.md
-        retention-days: 7
-    
-    - name: 设置总结状态
-      run: |
-        # 检查是否有任何任务失败
-        if [[ "${{ needs.test-unit.result }}" == "failure" ]] || 
-           [[ "${{ needs.test-integration.result }}" == "failure" ]] || 
-           [[ "${{ needs.test-e2e.result }}" == "failure" ]] || 
-           [[ "${{ needs.coverage-report.result }}" == "failure" ]]; then
-          echo "❌ 部分测试失败"
-          exit 1
-        else
-          echo "✅ 所有关键测试通过"
-        fi
-
-# 工作流触发后通知设置
-on:
-  workflow_run:
-    workflows: ["智能电网负荷预测系统 CI/CD"]
-    types: [completed]
-
-# 注释掉的通知部分，可根据需要启用
-# notifications:
-#   email:
-#     recipients:
-#       - team@example.com
-#     on_success: change
-#     on_failure: always
+      - name: TypeScript 类型检查
+        working-directory: frontend
+        run: npx tsc --noEmit

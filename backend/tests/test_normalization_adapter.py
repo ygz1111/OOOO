@@ -26,7 +26,7 @@ import pickle
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from realtime_api.normalization_adapter import (
     NormalizationAdapter,
@@ -132,7 +132,7 @@ class TestScalerLoading(unittest.TestCase):
     def test_custom_path(self):
         """测试自定义路径"""
         path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
             "processed", "step5_scalers.pkl"
         )
         adapter = NormalizationAdapter(scalers_path=path)

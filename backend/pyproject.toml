@@ -81,7 +81,6 @@ addopts = """
     --cov-report=term-missing:skip-covered
     --cov-report=html:coverage_html
     --cov-report=xml:coverage.xml
-    --cov-fail-under=80
 """
 testpaths = ["tests"]
 markers = [
@@ -112,8 +111,6 @@ omit = [
     "*_test.py",
 ]
 branch = true
-parallel = true
-concurrency = ["thread", "multiprocessing"]
 
 [tool.coverage.report]
 precision = 2

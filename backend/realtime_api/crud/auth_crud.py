@@ -419,7 +419,7 @@ class AuthCRUD:
         except jwt.ExpiredSignatureError:
             logger.warning("令牌已过期")
             return None
-        except jwt.JWTError as e:
+        except jwt.PyJWTError as e:
             logger.error(f"令牌验证失败: {e}")
             return None
 

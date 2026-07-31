@@ -202,7 +202,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             except jwt.ExpiredSignatureError:
                 logger.warning("令牌已过期")
                 return None, None
-            except jwt.JWTError as e:
+            except jwt.PyJWTError as e:
                 logger.error(f"令牌解析错误: {e}")
                 return None, None
                 

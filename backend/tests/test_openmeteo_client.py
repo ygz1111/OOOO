@@ -28,7 +28,7 @@ import pandas as pd
 
 import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from realtime_api.openmeteo_client import (
     OpenMeteoClient,
@@ -142,7 +142,7 @@ class TestOpenMeteoClientInit(unittest.TestCase):
         self.assertEqual(len(client.locations), 6)
         self.assertEqual(client.locations[0].name, "Boston")
         self.assertEqual(client.past_days, 7)
-        self.assertEqual(client.forecast_days, 1)
+        self.assertEqual(client.forecast_days, 2)
         self.assertEqual(client.timezone_str, "America/New_York")
 
     def test_custom_locations(self):

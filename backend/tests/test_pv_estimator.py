@@ -29,7 +29,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from realtime_api.pv_estimator import (
     PVGenerationEstimator,
@@ -388,7 +388,7 @@ class TestDailyForecast(unittest.TestCase):
 
     def test_result_structure(self):
         """测试结果结构完整"""
-        result = self.est.estimate_24h(self.weather)
+        result = self.est.estimate_24h(self.weather, start_time=datetime(2025, 7, 23, 0, 0))
 
         self.assertIsInstance(result, PVForecastResult)
         self.assertEqual(len(result.hourly_generation_mw), 24)
@@ -400,18 +400,18 @@ class TestDailyForecast(unittest.TestCase):
 
     def test_total_daily_mwh(self):
         """测试日总发电量为正"""
-        result = self.est.estimate_24h(self.weather)
+        result = self.est.estimate_24h(self.weather, start_time=datetime(2025, 7, 23, 0, 0))
         self.assertGreater(result.total_daily_mwh, 0)
 
     def test_capacity_factor_range(self):
         """测试容量因子在合理范围 (0-30%)"""
-        result = self.est.estimate_24h(self.weather)
+        result = self.est.estimate_24h(self.weather, start_time=datetime(2025, 7, 23, 0, 0))
         self.assertGreater(result.capacity_factor, 0)
         self.assertLess(result.capacity_factor, 0.5)
 
     def test_nighttime_hours_zero(self):
         """测试夜间时段发电为0"""
-        result = self.est.estimate_24h(self.weather)
+        result = self.est.estimate_24h(self.weather, start_time=datetime(2025, 7, 23, 0, 0))
         # 找到夜间时段 (辐射=0的位置)
         night_hours = np.where(self.weather["shortwave_radiation"] == 0)[0]
         for h in night_hours:
@@ -420,7 +420,7 @@ class TestDailyForecast(unittest.TestCase):
 
     def test_daytime_hours_positive(self):
         """测试白天时段发电为正"""
-        result = self.est.estimate_24h(self.weather)
+        result = self.est.estimate_24h(self.weather, start_time=datetime(2025, 7, 23, 0, 0))
         day_hours = np.where(self.weather["shortwave_radiation"] > 0)[0]
         for h in day_hours:
             self.assertGreater(result.hourly_generation_mw[h], 0,
@@ -428,7 +428,7 @@ class TestDailyForecast(unittest.TestCase):
 
     def test_to_dict(self):
         """测试结果转字典"""
-        result = self.est.estimate_24h(self.weather)
+        result = self.est.estimate_24h(self.weather, start_time=datetime(2025, 7, 23, 0, 0))
         d = result.to_dict()
 
         self.assertIn("hourly_generation_mw", d)
@@ -508,7 +508,9 @@ class TestPanelTypes(unittest.TestCase):
         results = {}
         for ptype in ["monocrystalline", "polycrystalline", "cdte"]:
             est = PVGenerationEstimator(panel_type=ptype)
-            results[ptype] = est.estimate_24h(weather).total_daily_mwh
+            results[ptype] = est.estimate_24h(
+                weather, start_time=datetime(2025, 7, 23, 0, 0)
+            ).total_daily_mwh
 
         self.assertNotEqual(results["monocrystalline"], results["cdte"])
 
@@ -583,7 +585,7 @@ class TestNewEnglandAdaptation(unittest.TestCase):
         # 夏季 7/23
         summer_weather = make_mock_weather()
         summer_est = PVGenerationEstimator()
-        summer_result = summer_est.estimate_24h(summer_weather)
+        summer_result = summer_est.estimate_24h(summer_weather, start_time=datetime(2025, 7, 23, 0, 0))
 
         # 冬季 12/21
         winter_ts = datetime(2025, 12, 21, 0)

@@ -650,6 +650,17 @@ class OpenMeteoClient:
             df[param_cols] = df[param_cols].ffill().bfill()
             logger.info(f"  {report.location}: 残留缺失值 {final_missing} 个已填充")
 
+        # ------ 5.1 整列全 NaN（API 未返回该参数）→ 填充物理合理默认值 ------
+        # ffill/bfill 对整列 NaN 无效，这里按参数特性给默认值，保证下游特征工程不崩
+        for param in param_cols:
+            if df[param].isna().all():
+                default = self._default_value_for(param)
+                df[param] = default
+                logger.warning(
+                    f"  {report.location}: 参数 {param} 整列缺失，填充默认值 {default}"
+                )
+                report.issues.append(f"{param}: 整列缺失，填充默认值")
+
         # 更新报告有效性
         if report.total_records > 0 and df[param_cols].isna().sum().sum() == 0:
             report.is_valid = True
@@ -657,6 +668,26 @@ class OpenMeteoClient:
             report.is_valid = report.total_records > 0
 
         return df, report
+
+    @staticmethod
+    def _default_value_for(param: str) -> float:
+        """整列缺失参数的安全默认值（物理合理）"""
+        defaults = {
+            "temperature_2m": 20.0,        # 常温
+            "dew_point_2m": 10.0,          # 低于常温
+            "relative_humidity_2m": 60.0,  # 中等湿度
+            "wind_speed_10m": 3.0,         # 轻风
+            "wind_direction_10m": 270.0,   # 西风（默认风向）
+            "surface_pressure": 1013.25,   # 标准大气压
+            "cloud_cover": 0.0,            # 晴
+            "cloud_cover_low": 0.0,
+            "cloud_cover_mid": 0.0,
+            "cloud_cover_high": 0.0,
+            "shortwave_radiation": 0.0,    # 无辐射
+            "direct_radiation": 0.0,
+            "diffuse_radiation": 0.0,
+        }
+        return defaults.get(param, 0.0)
 
     # ========================================================================
     # 输出和报告

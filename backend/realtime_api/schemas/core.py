@@ -107,14 +107,23 @@ class WeatherQueryRequest(BaseModel):
 class WeatherDataPoint(BaseModel):
     """预测请求中的气象数据点"""
     timestamp: datetime = Field(..., description="时间戳")
-    temperature_2m: float = Field(..., description="2米高度温度(℃)")
-    dew_point_2m: float = Field(..., description="2米高度露点温度(℃)")
+    temperature_2m: float = Field(..., ge=-60, le=60, description="2米高度温度(℃)")
+    dew_point_2m: float = Field(..., ge=-60, le=60, description="2米高度露点温度(℃)")
     relative_humidity_2m: Optional[float] = Field(None, ge=0, le=100, description="相对湿度(%)")
-    wind_speed_10m: Optional[float] = Field(None, description="10米高度风速(m/s)")
+    wind_speed_10m: Optional[float] = Field(None, ge=0, description="10米高度风速(m/s)")
     wind_direction_10m: Optional[float] = Field(None, ge=0, le=360, description="10米高度风向(度)")
-    surface_pressure: Optional[float] = Field(None, description="地面气压(hPa)")
+    surface_pressure: Optional[float] = Field(None, ge=300, le=1100, description="地面气压(hPa)")
     cloud_cover: Optional[float] = Field(None, ge=0, le=100, description="云覆盖率(%)")
-    shortwave_radiation: Optional[float] = Field(None, description="短波辐射(W/m²)")
+    shortwave_radiation: Optional[float] = Field(None, ge=0, description="短波辐射(W/m²)")
+
+    @model_validator(mode="after")
+    def check_dew_point(self):
+        """物理约束：露点温度不应高于气温"""
+        if self.dew_point_2m > self.temperature_2m:
+            raise ValueError(
+                f"露点温度 ({self.dew_point_2m}℃) 不能高于气温 ({self.temperature_2m}℃)"
+            )
+        return self
 
 
 class HistoricalLoadPoint(BaseModel):
