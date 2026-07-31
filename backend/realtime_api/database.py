@@ -322,10 +322,10 @@ async def get_db_async() -> AsyncGenerator[AsyncSession, None]:
         raise RuntimeError("异步数据库引擎初始化失败")
 
     async with _AsyncSessionLocal() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
+        # 由 async with 的 __aexit__ 统一管理 close/回滚；
+        # 此前 finally 里再显式 close 会触发
+        # IllegalStateChangeError: "Method 'close()' can't be called here"
+        yield session
 
 
 # 全局数据库管理器实例
