@@ -33,6 +33,11 @@ class ApiService {
 
   private authToken: string | null = null
   private onUnauthorized: (() => void) | null = null
+  private onTokenRefreshed: ((token: string) => void) | null = null
+  private refreshPromise: Promise<boolean> | null = null
+
+  private static TOKEN_KEY = 'smartgrid_access_token'
+  private static REFRESH_TOKEN_KEY = 'smartgrid_refresh_token'
 
   /**
    * 设置认证令牌（由 AuthContext 调用）
@@ -46,6 +51,45 @@ class ApiService {
    */
   setOnUnauthorized(callback: (() => void) | null) {
     this.onUnauthorized = callback
+  }
+
+  /**
+   * 设置令牌刷新回调（AuthContext 用于同步 React state）
+   */
+  setOnTokenRefreshed(callback: ((token: string) => void) | null) {
+    this.onTokenRefreshed = callback
+  }
+
+  /**
+   * 用 refresh token 换取新 access token（单飞：并发 401 只刷新一次）
+   */
+  private async tryRefreshToken(): Promise<boolean> {
+    if (this.refreshPromise) return this.refreshPromise
+
+    this.refreshPromise = (async () => {
+      const refreshToken = localStorage.getItem(ApiService.REFRESH_TOKEN_KEY)
+      if (!refreshToken) return false
+      try {
+        const res = await this.api.post('/auth/refresh', { refresh_token: refreshToken })
+        const { access_token, refresh_token } = res.data
+        this.authToken = access_token
+        localStorage.setItem(ApiService.TOKEN_KEY, access_token)
+        if (refresh_token) {
+          localStorage.setItem(ApiService.REFRESH_TOKEN_KEY, refresh_token)
+        }
+        this.onTokenRefreshed?.(access_token)
+        return true
+      } catch {
+        // 刷新失败：清空本地凭据，交由 onUnauthorized 登出
+        localStorage.removeItem(ApiService.TOKEN_KEY)
+        localStorage.removeItem(ApiService.REFRESH_TOKEN_KEY)
+        return false
+      } finally {
+        this.refreshPromise = null
+      }
+    })()
+
+    return this.refreshPromise
   }
 
   /**
@@ -67,9 +111,18 @@ class ApiService {
       return response.data
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        // 401 未授权 - 触发自动登出
-        if (error.response?.status === 401 && this.onUnauthorized) {
-          this.onUnauthorized()
+        // 401 未授权：先尝试用 refresh token 刷新后重试，刷新失败才登出
+        if (error.response?.status === 401) {
+          const refreshed = await this.tryRefreshToken()
+          if (refreshed) {
+            config.headers = {
+              ...config.headers,
+              Authorization: `Bearer ${this.authToken}`
+            }
+            const retry = await this.api.request<T>(config)
+            return retry.data
+          }
+          this.onUnauthorized?.()
         }
 
         // 统一提取后端错误消息

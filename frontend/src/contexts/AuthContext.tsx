@@ -39,6 +39,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // 从 localStorage 恢复认证状态
   useEffect(() => {
+    // 注册 401 自动处理：token 过期时 apiService 会先用 refresh token 刷新并重试；
+    // 刷新也失败（refresh token 失效）才登出
+    apiService.setOnUnauthorized(() => {
+      clearAuth()
+    })
+    apiService.setOnTokenRefreshed((newToken) => {
+      setToken(newToken)
+    })
+
     const storedToken = localStorage.getItem(TOKEN_KEY)
     const storedUser = localStorage.getItem(USER_KEY)
 

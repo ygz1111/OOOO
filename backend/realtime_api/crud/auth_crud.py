@@ -51,7 +51,7 @@ def verify_password(password: str, hashed: str) -> bool:
 # 密钥统一从 config_manager.get_jwt_secret() 动态读取（优先 AUTH_JWT_SECRET_KEY 环境变量），
 # 不在模块加载时固化，避免 import 顺序导致密钥不一致。
 JWT_ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 720  # 12 小时；过期后由 /api/auth/refresh 滑动续期
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 

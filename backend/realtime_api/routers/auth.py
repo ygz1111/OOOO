@@ -26,6 +26,7 @@ from realtime_api.schemas.auth import (
     UserResponse,
     LoginRequest,
     TokenResponse,
+    RefreshTokenRequest,
     PasswordChange,
     PasswordReset,
     UserProfile,
@@ -187,7 +188,7 @@ async def login(
             access_token=access_token,
             refresh_token=refresh_token,
             token_type="bearer",
-            expires_in=1800,
+            expires_in=43200,  # 12 小时
             user=user  # 包含用户信息
         )
         
@@ -207,13 +208,14 @@ async def login(
     description="刷新访问令牌"
 )
 async def refresh_access_token(
-    refresh_token: str,
+    body: RefreshTokenRequest,
     request: Request,
     db: AsyncSession = Depends(get_db_async)
 ):
-    """使用Refresh Token获取新的Access Token"""
+    """使用Refresh Token获取新的Access Token（body 传 {refresh_token}）"""
     try:
         auth_crud = AuthCRUD(db)
+        refresh_token = body.refresh_token
         
         # 验证Refresh Token
         token_data = auth_crud.verify_token(refresh_token)
@@ -244,7 +246,7 @@ async def refresh_access_token(
             access_token=new_access_token,
             refresh_token=refresh_token,
             token_type="bearer",
-            expires_in=1800,
+            expires_in=43200,  # 12 小时
             user=user
         )
         

@@ -64,6 +64,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
             '/api/auth/register',
             '/api/auth/reset',
             '/api/auth/health',
+            # 令牌刷新：用 refresh token 自证身份，不受 access token 中间件拦截
+            '/api/auth/refresh',
             # 天气当前值与系统状态（无敏感数据，供前端免登录展示）
             '/api/weather/current',
             '/api/system/status',
