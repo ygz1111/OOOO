@@ -110,7 +110,7 @@ Write-Host ""
 Write-Host "[1/3] 启动后端 (端口 $BackendPort)..." -ForegroundColor Yellow
 
 $backend = Start-Process -FilePath "python" `
-    -ArgumentList "-m", "uvicorn", "realtime_api.app:app", "--host", "127.0.0.1", "--port", "$BackendPort", "--reload" `
+    -ArgumentList "-m", "uvicorn", "realtime_api.app:app", "--host", "127.0.0.1", "--port", "$BackendPort" `
     -WorkingDirectory $BackendDir `
     -WindowStyle Normal `
     -PassThru

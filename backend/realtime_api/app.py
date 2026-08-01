@@ -137,6 +137,19 @@ async def lifespan(app: FastAPI):
     logger.info("智能电网负荷预测系统 - 启动中")
     logger.info("=" * 60)
 
+    # 修复：Windows 下 asyncio 全局默认 executor（run_in_executor(None)/to_thread）
+    # 在 asyncio server（uvicorn/hypercorn）中完成回调不唤醒事件循环，
+    # 导致线程池任务（DB/健康检查/系统采样）挂起。显式设置专用默认 executor。
+    try:
+        from concurrent.futures import ThreadPoolExecutor
+        _loop = asyncio.get_running_loop()
+        _loop.set_default_executor(
+            ThreadPoolExecutor(max_workers=16, thread_name_prefix="asyncio-default")
+        )
+        logger.info("✅ 已设置专用默认线程池 (asyncio-default)")
+    except Exception as e:
+        logger.warning(f"设置默认线程池失败: {e}")
+
     services.start_time = time.time()
 
     # 0. 初始化数据库

@@ -162,10 +162,13 @@ async def get_system_metrics(
     description="检查所有核心组件的健康状态（数据库、Redis、模型服务、系统资源、GPU）",
 )
 async def health_check():
-    """综合健康检查端点"""
+    """综合健康检查端点（带 10s 总超时保护，避免组件检查卡死拖垮健康检查）"""
     health_service = get_health_check_service()
-    health_result = await health_service.comprehensive_health_check(
-        inference_service=services.inference_service
+    health_result = await asyncio.wait_for(
+        health_service.comprehensive_health_check(
+            inference_service=services.inference_service
+        ),
+        timeout=10.0,
     )
     return health_result
 

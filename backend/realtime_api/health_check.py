@@ -336,7 +336,11 @@ class HealthCheckService:
                 asyncio.to_thread(self.check_gpu_health)
             ]
             
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+            # 总超时 10s：任一组件检查卡住（如 Redis/GPU 环境缺失）也快速返回，
+            # 避免 /api/health 长时间挂起（start.ps1 / Docker healthcheck 依赖它）
+            results = await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True), timeout=10.0
+            )
             
             # 处理结果
             components = []

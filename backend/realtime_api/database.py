@@ -21,6 +21,7 @@ from typing import AsyncGenerator, Optional, Dict, Any
 
 import mysql.connector
 from mysql.connector import pooling, Error as MySQLError
+from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 
 # SQLAlchemy async 支持 (用于认证模块的 AsyncSession)
@@ -107,6 +108,11 @@ class DatabaseManager:
     def __init__(self):
         if not self._initialized:
             self._config = DatabaseConfig()
+            # 专用线程池执行同步 mysql-connector 调用：
+            # 在 asyncio server（uvicorn/hypercorn）进程中，全局默认 executor
+            # 的 run_in_executor 回调不唤醒事件循环导致 DB 调用挂起；
+            # 专用线程池 + wrap_future 规避该问题（登录链路用 aiomysql 纯 async 不受影响）
+            self._executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="dbpool")
             self._initialized = True
     
     async def initialize(self) -> None:
@@ -122,7 +128,7 @@ class DatabaseManager:
                     def create_pool():
                         return pooling.MySQLConnectionPool(**self._config.get_connection_params())
                     
-                    self._pool = await loop.run_in_executor(None, create_pool)
+                    self._pool = await asyncio.wrap_future(self._executor.submit(create_pool))
                     
                     # 测试连接
                     test_conn = await self.get_connection()
@@ -140,7 +146,7 @@ class DatabaseManager:
         
         try:
             loop = asyncio.get_event_loop()
-            connection = await loop.run_in_executor(None, self._pool.get_connection)
+            connection = await asyncio.wrap_future(self._executor.submit(self._pool.get_connection))
             logger.debug("成功从连接池获取数据库连接")
             return connection
         except Exception as e:
@@ -150,7 +156,7 @@ class DatabaseManager:
     async def release_connection(self, connection: mysql.connector.MySQLConnection) -> None:
         """释放连接到连接池"""
         try:
-            await asyncio.get_event_loop().run_in_executor(None, connection.close)
+            await asyncio.wrap_future(self._executor.submit(connection.close))
             logger.debug("连接已释放回连接池")
         except Exception as e:
             logger.warning(f"释放连接时发生异常: {str(e)}")
@@ -174,11 +180,11 @@ class DatabaseManager:
                 loop = asyncio.get_event_loop()
                 cursor = connection.cursor(dictionary=True)
                 
-                result = await loop.run_in_executor(
-                    None, 
+                _fut = self._executor.submit(
                     lambda: cursor.execute(sql, params) or cursor.fetchall()
                 )
-                
+                result = await asyncio.wrap_future(_fut)
+
                 return result if result is not None else []
             except Exception as e:
                 logger.error(f"SQL执行失败: {sql}, 参数: {params}, 错误: {str(e)}")
@@ -203,7 +209,7 @@ class DatabaseManager:
                 loop = asyncio.get_event_loop()
                 cursor = connection.cursor()
                 
-                await loop.run_in_executor(None, lambda: cursor.execute(sql, params))
+                await asyncio.wrap_future(self._executor.submit(lambda: cursor.execute(sql, params)))
                 insert_id = cursor.lastrowid
                 
                 return insert_id
@@ -222,9 +228,10 @@ class DatabaseManager:
                 loop = asyncio.get_event_loop()
                 cursor = connection.cursor()
                 
-                result = await loop.run_in_executor(
-                    None, 
-                    lambda: cursor.executemany(sql, params_list) or cursor.rowcount
+                result = await asyncio.wrap_future(
+                    self._executor.submit(
+                        lambda: cursor.executemany(sql, params_list) or cursor.rowcount
+                    )
                 )
                 
                 count = result if result is not None else 0
