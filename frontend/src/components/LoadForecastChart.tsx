@@ -18,6 +18,8 @@ import { TrendingUp, RefreshCw, Clock } from 'lucide-react'
 
 interface LoadForecastChartProps {
   data: LoadPredictionResponse | null
+  /** 最近已发生的实际负荷（ISO-NE 真实数据），叠加在 hour 轴负区间（过去） */
+  actualData?: Array<{ target_timestamp: string; actual_load_mw: number }>
   /** 仅在首次加载（无数据）时为 true，触发骨架屏 */
   isLoading?: boolean
   /** 刷新中（已有旧数据），触发轻量遮罩 */
@@ -70,6 +72,7 @@ const renderColorfulLegendText = (value: string) => (
 
 const LoadForecastChart: React.FC<LoadForecastChartProps> = ({
   data,
+  actualData = [],
   isLoading = false,
   isRefreshing = false,
   height = 400,
@@ -88,14 +91,30 @@ const LoadForecastChart: React.FC<LoadForecastChartProps> = ({
   }
 
   // 转换数据格式用于图表显示
-  const chartData = data.predictions.map((pred) => ({
+  const nowMs = Date.now()
+  const actualPoints = (actualData ?? []).map((a) => {
+    const t = new Date(a.target_timestamp).getTime()
+    const hourOffset = Math.round((t - nowMs) / 3600000)
+    return {
+      hour: hourOffset,
+      timestamp: new Date(a.target_timestamp),
+      实际负荷: a.actual_load_mw,
+      总负荷: null,
+      光伏发电: null,
+      风电发电: null,
+      净负荷: null,
+    }
+  })
+  const forecastPoints = data.predictions.map((pred) => ({
     hour: pred.hour,
     timestamp: new Date(pred.timestamp),
+    实际负荷: null,
     总负荷: pred.load_forecast_mw,
     光伏发电: pred.pv_estimation_mw,
     风电发电: pred.wind_estimation_mw ?? 0,
     净负荷: pred.net_load_mw,
   }))
+  const chartData = [...actualPoints, ...forecastPoints].sort((a, b) => a.hour - b.hour)
 
   return (
     <div
@@ -144,7 +163,7 @@ const LoadForecastChart: React.FC<LoadForecastChartProps> = ({
             dataKey="hour"
             stroke="#64748b"
             fontSize={12}
-            tickFormatter={(value) => `${value}时`}
+            tickFormatter={(value) => value < 0 ? `${-value}h前` : value === 0 ? '现在' : `${value}h`}
             tick={{ fill: '#64748b' }}
             axisLine={{ stroke: '#1F2937' }}
           />
@@ -176,6 +195,19 @@ const LoadForecastChart: React.FC<LoadForecastChartProps> = ({
               fill: '#ef4444',
               fontSize: 11,
             }}
+          />
+
+          {/* 实际负荷（ISO-NE 真实数据）- 绿色粗实线 */}
+          <Line
+            type="monotone"
+            dataKey="实际负荷"
+            stroke="#10B981"
+            strokeWidth={3}
+            connectNulls={false}
+            dot={{ r: 4, fill: '#10B981' }}
+            activeDot={{ r: 6, fill: '#10B981', stroke: 'white', strokeWidth: 2 }}
+            isAnimationActive={true}
+            animationDuration={600}
           />
 
           {/* 总负荷 - 实线 */}

@@ -1,10 +1,10 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { useApi } from '../contexts/ApiContext'
 import MetricCard from '../components/MetricCard'
 import LoadForecastChart from '../components/LoadForecastChart'
-import PredictionVsActualCard from '../components/PredictionVsActualCard'
-import WeatherCard from '../components/WeatherCard'
-import { MetricCardSkeleton, CardSkeleton, ErrorBanner } from '../components/Skeleton'
+import apiService from '../services/api'
+import { PredictionVsActualPair } from '../types'
+import { MetricCardSkeleton, ErrorBanner } from '../components/Skeleton'
 import {
   TrendingUp,
   Zap,
@@ -13,7 +13,6 @@ import {
   Activity,
   Clock,
   Cpu,
-  Cloud,
   AlertTriangle,
   RefreshCw,
 } from 'lucide-react'
@@ -45,6 +44,16 @@ const RefreshIndicator: React.FC<{ isRefreshing: boolean; lastUpdated: number | 
 
 const Dashboard: React.FC = () => {
   const { prediction, weather, systemStatus, isLoading, isInitialLoad, lastUpdated, errors } = useApi()
+
+  // 最近 24h 真实实际负荷（ISO-NE），叠加到负荷预测图负区间（实际每小时更新，加载一次即可）
+  const [actualLoad, setActualLoad] = useState<PredictionVsActualPair[]>([])
+  useEffect(() => {
+    let cancelled = false
+    apiService.getPredictionVsActual(24)
+      .then((res) => { if (!cancelled) setActualLoad(res.data?.pairs ?? []) })
+      .catch(() => { /* 无实际数据时静默 */ })
+    return () => { cancelled = true }
+  }, [])
 
   // 计算关键指标 — useMemo 避免每次渲染都重新计算
   const metrics = useMemo(() => {
@@ -202,6 +211,7 @@ const Dashboard: React.FC = () => {
             {/* 传递 isInitialLoad 而非 isLoading，避免刷新时图表被骨架屏替换 */}
             <LoadForecastChart
               data={prediction}
+              actualData={actualLoad}
               isLoading={isInitialLoad.prediction && isLoading.prediction}
               isRefreshing={isLoading.prediction && !isInitialLoad.prediction}
               height={380}
@@ -213,46 +223,6 @@ const Dashboard: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
-
-        {/* 预测 vs 实际负荷对比（真实 ISO-NE 实际负荷） */}
-        <PredictionVsActualCard hours={48} />
-
-        {/* 气象数据面板 */}
-        <div className={`space-y-4 transition-opacity duration-300 ${isLoading.weather && weather ? 'opacity-80' : 'opacity-100'}`}>
-          <div className="flex items-center gap-3 mb-2">
-            <Cloud className="w-6 h-6" style={{ color: '#00F0FF' }} aria-hidden="true" />
-            <div>
-              <h2 className="text-lg font-semibold text-white font-cyber">气象监控</h2>
-              <p className="text-sm font-mono" style={{ color: 'rgba(0, 240, 255, 0.3)' }}>新英格兰地区实时数据</p>
-            </div>
-          </div>
-
-          {/* 区域平均 — 仅首次加载显示骨架屏 */}
-          {weather?.regional_average ? (
-            <WeatherCard
-              station={
-                {
-                  name: '区域平均',
-                  latitude: 0,
-                  longitude: 0,
-                  ...weather.regional_average,
-                } as any
-              }
-              isRegional={true}
-            />
-          ) : isInitialLoad.weather && isLoading.weather ? (
-            <CardSkeleton lines={4} />
-          ) : null}
-
-          {/* 各站点数据 — 刷新时保留旧数据 */}
-          <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1 -mr-1">
-            {weather?.stations?.map((station, index) => (
-              <WeatherCard key={index} station={station} />
-            ))}
-          </div>
-
-          {errors.weather && <ErrorBanner message={errors.weather} />}
         </div>
       </div>
 
