@@ -11,12 +11,12 @@
    key 注册：https://www.eia.gov/opendata/register.php （填邮箱即时发放）
    环境变量：EIA_API_KEY
 
-2. iso_ne（需人工审批）
+2. iso_ne（ISO Express 注册用户自动获得 Web Services 访问权限）
    数据源：ISO-NE Web Services API v1.1
-   端点：GET /hourlysystemload/day/{YYYYMMDD}
-   认证：HTTP Basic（用户名 = API key，密码留空）
-   申请：https://www.iso-ne.com/participate/applications-status-changes/access-software-systems
-   环境变量：ISO_NE_API_KEY
+   端点：GET /fiveminutesystemload/day/{YYYYMMDD}（5分钟真实系统负荷，
+         按小时平均为整点实际负荷，东部时区与预测对齐）
+   认证：HTTP Basic（用户名 = ISO Express 注册邮箱，密码 = ISO Express 密码）
+   环境变量：ISO_NE_USERNAME（邮箱）+ ISO_NE_PASSWORD（密码）
 
 行为：
   1. 拉取指定日期（默认昨天）每小时实际系统负荷
@@ -28,8 +28,9 @@
   export EIA_API_KEY=你的key
   cd backend && python scripts/fetch_iso_ne_load.py --source eia [YYYYMMDD]
 
-  # ISO-NE
-  export ISO_NE_API_KEY=你的key
+  # ISO-NE（ISO Express 邮箱 + 密码）
+  export ISO_NE_USERNAME=你的邮箱
+  export ISO_NE_PASSWORD=你的密码
   cd backend && python scripts/fetch_iso_ne_load.py --source iso_ne [YYYYMMDD]
 """
 import os
@@ -53,41 +54,48 @@ logger = logging.getLogger("fetch_actual_load")
 
 # ISO-NE
 ISO_NE_BASE = "https://webservices.iso-ne.com/api/v1.1"
-ISO_NE_APPLY_URL = (
-    "https://www.iso-ne.com/participate/applications-status-changes/access-software-systems"
-)
 # EIA
 EIA_URL = "https://api.eia.gov/v2/electricity/rto/region-data/data/"
 EIA_REGISTER_URL = "https://www.eia.gov/opendata/register.php"
 
 
-def fetch_iso_ne(day: date, api_key: str) -> list:
-    """ISO-NE 小时级实际系统负荷 → [(datetime, MW), ...]"""
-    url = f"{ISO_NE_BASE}/hourlysystemload/day/{day.strftime('%Y%m%d')}?format=json"
-    resp = requests.get(url, auth=(api_key, ""), timeout=30)
+def fetch_iso_ne(day: date, username: str, password: str) -> list:
+    """ISO-NE 实际系统负荷 → [(整点 datetime(东部naive), 小时平均MW), ...]
+
+    端点：/fiveminutesystemload/day/{YYYYMMDD}（5 分钟粒度真实系统负荷）
+    认证：HTTP Basic（username = ISO Express 注册邮箱，password = ISO Express 密码）
+    转换：5 分钟 LoadMw 按小时平均 → 整点时间戳（东部时区 naive，与预测对齐）
+    """
+    url = f"{ISO_NE_BASE}/fiveminutesystemload/day/{day.strftime('%Y%m%d')}"
+    resp = requests.get(
+        url, auth=(username, password), timeout=30,
+        headers={"Accept": "application/json"},
+    )
     resp.raise_for_status()
     data = resp.json()
 
-    loads = data
-    for key in ("HourlySystemLoads", "hourly_system_loads", "data"):
-        if isinstance(data, dict) and key in data:
-            loads = data[key]
-            break
-    items = loads
-    if isinstance(loads, dict):
-        for key in ("HourlySystemLoad", "hourly_system_load", "items"):
-            if key in loads:
-                items = loads[key]
-                break
+    loads = data.get("FiveMinSystemLoads", {})
+    items = loads.get("FiveMinSystemLoad", [])
 
-    rows = []
+    from zoneinfo import ZoneInfo
+    east = ZoneInfo("America/New_York")
+    hourly = {}
     for it in items:
-        begin = it.get("BeginDate") or it.get("begin_date") or it.get("timestamp")
-        mw = it.get("Mw") or it.get("mw") or it.get("value")
+        begin = it.get("BeginDate")
+        mw = it.get("LoadMw")
         if begin is None or mw is None:
             continue
-        ts = datetime.fromisoformat(begin.replace("Z", "+00:00"))
-        rows.append((ts, float(mw)))
+        # 带偏移时间戳 → 东部墙钟 naive（与预测 target_timestamp 对齐）
+        ts = datetime.fromisoformat(begin)
+        if ts.tzinfo is not None:
+            ts = ts.astimezone(east).replace(tzinfo=None)
+        hour_key = ts.replace(minute=0, second=0, microsecond=0)
+        vals = hourly.setdefault(hour_key, [])
+        vals.append(float(mw))
+
+    rows = [
+        (hour, sum(v) / len(v)) for hour, v in sorted(hourly.items())
+    ]
     return rows
 
 
@@ -117,12 +125,6 @@ def fetch_eia(day: date, api_key: str) -> list:
         ts = datetime.strptime(period, "%Y-%m-%dT%H")
         rows.append((ts, float(value)))
     return rows
-
-
-FETCHERS = {
-    "eia": (fetch_eia, "EIA_API_KEY", EIA_REGISTER_URL, "eia"),
-    "iso_ne": (fetch_iso_ne, "ISO_NE_API_KEY", ISO_NE_APPLY_URL, "iso_ne"),
-}
 
 
 async def persist(rows, data_source: str, region: str = "NewEngland"):
@@ -161,19 +163,33 @@ def main():
                         help="数据源（默认 eia，key 即时免费）")
     args = parser.parse_args()
 
-    fetcher, env_key, register_url, data_source = FETCHERS[args.source]
-    api_key = os.getenv(env_key, "").strip()
-    if not api_key:
-        print(f"\n❌ 未配置 {env_key}。\n"
-              f"   注册地址: {register_url}\n"
-              f"   然后在 .env 中设置 {env_key}=你的key\n")
-        sys.exit(1)
+    if args.source == "eia":
+        api_key = os.getenv("EIA_API_KEY", "").strip()
+        if not api_key:
+            print(f"\n❌ 未配置 EIA_API_KEY。\n"
+                  f"   注册地址: {EIA_REGISTER_URL}\n"
+                  f"   然后在 .env 中设置 EIA_API_KEY=你的key\n")
+            sys.exit(1)
+        fetch = lambda d: fetch_eia(d, api_key)
+        data_source = "eia"
+    else:  # iso_ne：ISO Express 邮箱 + 密码（注册用户自动获得 Web Services 权限）
+        username = os.getenv("ISO_NE_USERNAME", "").strip()
+        password = os.getenv("ISO_NE_PASSWORD", "").strip()
+        if not username or not password:
+            print("\n❌ 未配置 ISO_NE_USERNAME / ISO_NE_PASSWORD。\n"
+                  "   ISO-NE 官网：拥有 ISO Express 账户的用户自动获得 Web Services 访问权限\n"
+                  "   请在 .env 中设置：\n"
+                  "     ISO_NE_USERNAME=你的ISOExpress注册邮箱\n"
+                  "     ISO_NE_PASSWORD=你的ISOExpress密码\n")
+            sys.exit(1)
+        fetch = lambda d: fetch_iso_ne(d, username, password)
+        data_source = "iso_ne"
 
     day = datetime.strptime(args.day, "%Y%m%d").date() if args.day \
         else date.today() - timedelta(days=1)
 
     logger.info(f"[{args.source}] 拉取 {day} 的实际负荷...")
-    rows = fetcher(day, api_key)
+    rows = fetch(day)
     logger.info(f"获取到 {len(rows)} 条小时数据（示例: {rows[0] if rows else '无'}）")
 
     import asyncio
