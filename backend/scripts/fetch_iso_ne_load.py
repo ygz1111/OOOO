@@ -48,6 +48,7 @@ load_dotenv(os.path.join(BACKEND_DIR, "..", ".env"))
 sys.path.insert(0, BACKEND_DIR)
 from realtime_api.crud import ActualLoadDataCRUD
 from realtime_api.database import db_manager
+from realtime_api.utils.iso_ne import fetch_hourly_actual_load
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger("fetch_actual_load")
@@ -57,46 +58,6 @@ ISO_NE_BASE = "https://webservices.iso-ne.com/api/v1.1"
 # EIA
 EIA_URL = "https://api.eia.gov/v2/electricity/rto/region-data/data/"
 EIA_REGISTER_URL = "https://www.eia.gov/opendata/register.php"
-
-
-def fetch_iso_ne(day: date, username: str, password: str) -> list:
-    """ISO-NE 实际系统负荷 → [(整点 datetime(东部naive), 小时平均MW), ...]
-
-    端点：/fiveminutesystemload/day/{YYYYMMDD}（5 分钟粒度真实系统负荷）
-    认证：HTTP Basic（username = ISO Express 注册邮箱，password = ISO Express 密码）
-    转换：5 分钟 LoadMw 按小时平均 → 整点时间戳（东部时区 naive，与预测对齐）
-    """
-    url = f"{ISO_NE_BASE}/fiveminutesystemload/day/{day.strftime('%Y%m%d')}"
-    resp = requests.get(
-        url, auth=(username, password), timeout=30,
-        headers={"Accept": "application/json"},
-    )
-    resp.raise_for_status()
-    data = resp.json()
-
-    loads = data.get("FiveMinSystemLoads", {})
-    items = loads.get("FiveMinSystemLoad", [])
-
-    from zoneinfo import ZoneInfo
-    east = ZoneInfo("America/New_York")
-    hourly = {}
-    for it in items:
-        begin = it.get("BeginDate")
-        mw = it.get("LoadMw")
-        if begin is None or mw is None:
-            continue
-        # 带偏移时间戳 → 东部墙钟 naive（与预测 target_timestamp 对齐）
-        ts = datetime.fromisoformat(begin)
-        if ts.tzinfo is not None:
-            ts = ts.astimezone(east).replace(tzinfo=None)
-        hour_key = ts.replace(minute=0, second=0, microsecond=0)
-        vals = hourly.setdefault(hour_key, [])
-        vals.append(float(mw))
-
-    rows = [
-        (hour, sum(v) / len(v)) for hour, v in sorted(hourly.items())
-    ]
-    return rows
 
 
 def fetch_eia(day: date, api_key: str) -> list:
@@ -182,7 +143,7 @@ def main():
                   "     ISO_NE_USERNAME=你的ISOExpress注册邮箱\n"
                   "     ISO_NE_PASSWORD=你的ISOExpress密码\n")
             sys.exit(1)
-        fetch = lambda d: fetch_iso_ne(d, username, password)
+        fetch = lambda d: fetch_hourly_actual_load(d, username, password)
         data_source = "iso_ne"
 
     day = datetime.strptime(args.day, "%Y%m%d").date() if args.day \

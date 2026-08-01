@@ -15,7 +15,8 @@ import {
   SolarGenerationResponse,
   SolarModelInfoResponse,
   WindGenerationResponse,
-  PowerCurveResponse
+  PowerCurveResponse,
+  PredictionVsActualResponse
 } from '../types'
 import { LoginRequest, RegisterRequest, TokenResponse } from '../types/auth'
 
@@ -208,6 +209,11 @@ class ApiService {
   /** 风电功率曲线 */
   async getWindPowerCurve(): Promise<PowerCurveResponse> {
     return this.get<PowerCurveResponse>('/wind-generation/power-curve')
+  }
+
+  /** 预测 vs 实际负荷对比（真实实际负荷） */
+  async getPredictionVsActual(hours: number = 48): Promise<PredictionVsActualResponse> {
+    return this.get<PredictionVsActualResponse>('/analytics/prediction-vs-actual', { hours })
   }
 
   /** 健康检查（公开端点） */

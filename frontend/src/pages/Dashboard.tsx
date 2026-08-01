@@ -2,6 +2,7 @@ import React, { useMemo } from 'react'
 import { useApi } from '../contexts/ApiContext'
 import MetricCard from '../components/MetricCard'
 import LoadForecastChart from '../components/LoadForecastChart'
+import PredictionVsActualCard from '../components/PredictionVsActualCard'
 import WeatherCard from '../components/WeatherCard'
 import { MetricCardSkeleton, CardSkeleton, ErrorBanner } from '../components/Skeleton'
 import {
@@ -213,6 +214,9 @@ const Dashboard: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* 预测 vs 实际负荷对比（真实 ISO-NE 实际负荷） */}
+        <PredictionVsActualCard hours={48} />
 
         {/* 气象数据面板 */}
         <div className={`space-y-4 transition-opacity duration-300 ${isLoading.weather && weather ? 'opacity-80' : 'opacity-100'}`}>

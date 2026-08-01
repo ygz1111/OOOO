@@ -842,3 +842,96 @@ async def get_dashboard_metrics(
             status_code=500,
             detail=f"获取仪表板指标失败: {str(e)}"
         )
+
+# ============================================================================
+# 预测 vs 实际 对比（真实实际负荷）
+# ============================================================================
+
+@router.get(
+    "/prediction-vs-actual",
+    response_model=Dict[str, Any],
+    summary="预测 vs 实际负荷对比",
+    description=(
+        "返回最近 N 小时预测负荷 vs 真实实际负荷的小时级配对数据，"
+        "含逐小时误差与汇总统计（MAE/MAPE/RMSE）。"
+        "实际负荷来自 ISO-NE（data_source=iso_ne）真实数据。"
+    )
+)
+async def prediction_vs_actual(
+    hours: int = Query(48, ge=1, le=168, description="回看小时数"),
+    db_manager=Depends(get_db_manager),
+):
+    """小时级预测 vs 实际对比（按 target_timestamp 去重取最新预测）"""
+    try:
+        # 每个 target_timestamp 取最新一次预测（MySQL 8 窗口函数）
+        sql = """
+            SELECT target_timestamp, load_forecast_mw, actual_load_mw
+            FROM (
+                SELECT target_timestamp, load_forecast_mw, actual_load_mw,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY target_timestamp
+                           ORDER BY prediction_timestamp DESC
+                       ) AS rn
+                FROM load_predictions
+                WHERE actual_load_mw IS NOT NULL
+            ) t
+            WHERE rn = 1
+            ORDER BY target_timestamp ASC
+            LIMIT %s
+        """
+        rows = await db_manager.execute_sql(sql, (hours,))
+        if not rows:
+            return {
+                "status": "success",
+                "message": "暂无预测 vs 实际配对数据（实际负荷未接入）",
+                "data": {"pairs": [], "summary": None},
+                "timestamp": eastern_now().isoformat(),
+            }
+
+        import numpy as np
+        pairs = []
+        errors = []
+        for r in rows:
+            forecast = float(r["load_forecast_mw"] or 0)
+            actual = float(r["actual_load_mw"] or 0)
+            abs_err = abs(forecast - actual)
+            pct_err = abs_err / actual * 100 if actual > 1 else None
+            errors.append(abs_err)
+            pairs.append({
+                "target_timestamp": r["target_timestamp"].isoformat(),
+                "load_forecast_mw": round(forecast, 1),
+                "actual_load_mw": round(actual, 1),
+                "absolute_error_mw": round(abs_err, 1),
+                "percentage_error": round(pct_err, 2) if pct_err is not None else None,
+            })
+
+        arr = np.array(errors)
+        mae = float(arr.mean())
+        rmse = float(np.sqrt(np.mean(arr ** 2)))
+        mask = np.abs([p["actual_load_mw"] for p in pairs]) > 1
+        mape = float(np.mean([
+            p["absolute_error_mw"] / p["actual_load_mw"] * 100
+            for p, m in zip(pairs, mask) if m
+        ])) if mask.any() else None
+
+        summary = {
+            "count": len(pairs),
+            "mae_mw": round(mae, 1),
+            "rmse_mw": round(rmse, 1),
+            "mape": round(mape, 2) if mape is not None else None,
+            "data_source": "iso_ne",
+            "note": "实际负荷来自 ISO-NE 真实数据",
+        }
+        return {
+            "status": "success",
+            "message": "获取预测 vs 实际对比成功",
+            "data": {"pairs": pairs, "summary": summary},
+            "timestamp": eastern_now().isoformat(),
+        }
+
+    except Exception as e:
+        logger.error(f"获取预测vs实际对比失败: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取预测vs实际对比失败: {str(e)}"
+        )

@@ -80,7 +80,6 @@ async def _periodic_performance_alerts():
             cpu = stats['cpu_percent']
             mem_percent = stats['memory_percent']
             disk_percent = stats['disk_percent']
-
             # CPU 使用率超过 90%
             if cpu > 90:
                 await PerformanceAlertsCRUD.insert_alert(
@@ -121,6 +120,36 @@ async def _periodic_performance_alerts():
 
 
 # ============================================================================
+# 实际负荷自动同步（每 60 分钟拉取 ISO-NE 当天+昨天真实负荷）
+# ============================================================================
+
+async def _periodic_actual_load_sync():
+    """每 60 分钟拉取 ISO-NE 实际负荷（今天已发生小时 + 昨天），幂等回填。
+
+    需要 .env 配置 ISO_NE_USERNAME / ISO_NE_PASSWORD（ISO Express 凭据）；
+    未配置时静默跳过（不影响其他任务）。
+    """
+    from datetime import date, timedelta
+
+    from realtime_api.utils.iso_ne import sync_actual_load_for_days
+
+    while True:
+        try:
+            today = date.today()
+            result = await sync_actual_load_for_days(
+                [today - timedelta(days=1), today]
+            )
+            if result["days"]:
+                logger.info(
+                    f"实际负荷同步完成: {result['days']} 天, "
+                    f"新增 {result['inserted']} 条, 回填 {result['backfilled']} 条"
+                )
+        except Exception as e:
+            logger.warning(f"实际负荷同步失败: {e}")
+        await asyncio.sleep(3600)  # 每 60 分钟
+
+
+# ============================================================================
 # 启动 / 停止后台任务
 # ============================================================================
 
@@ -134,8 +163,10 @@ def start_background_tasks() -> list:
     _bg_tasks = [
         asyncio.create_task(_periodic_system_metrics()),
         asyncio.create_task(_periodic_performance_alerts()),
+        asyncio.create_task(_periodic_actual_load_sync()),
     ]
-    logger.info("✅ 定期后台任务已启动 (系统监控/性能预警)")
+    logger.info("✅ 定期后台任务已启动 (系统监控/性能预警/实际负荷同步)")
+    logger.info("✅ 定期后台任务已启动 (系统监控/性能预警/实际负荷同步)")
     return _bg_tasks
 
 

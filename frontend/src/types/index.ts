@@ -281,3 +281,30 @@ export interface PowerCurveResponse {
   }>
   timestamp: string
 }
+
+// ========================================
+// 预测 vs 实际负荷对比
+// ========================================
+
+export interface PredictionVsActualPair {
+  target_timestamp: string
+  load_forecast_mw: number
+  actual_load_mw: number
+  absolute_error_mw: number
+  percentage_error: number | null
+}
+
+export interface PredictionVsActualResponse {
+  status: string
+  data: {
+    pairs: PredictionVsActualPair[]
+    summary: {
+      count: number
+      mae_mw: number
+      rmse_mw: number
+      mape: number | null
+      data_source: string
+      note: string
+    } | null
+  }
+}
