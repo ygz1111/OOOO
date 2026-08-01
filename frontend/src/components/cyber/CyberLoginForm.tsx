@@ -226,7 +226,7 @@ export function CyberLoginForm({
               <input
                 type="text" value={captchaInput}
                 onChange={(e) => setCaptchaInput(e.target.value)}
-                placeholder={captchaCode}
+                placeholder={lang === 'zh' ? '输入右侧校验码' : 'Enter code'}
                 className="w-full bg-slate-950/80 border border-cyan-500/30 focus:border-cyan-400 rounded-xl pl-10 pr-3 py-2.5 text-slate-100 placeholder-slate-600 outline-none transition-all"
               />
             </div>
@@ -299,7 +299,7 @@ export function CyberLoginForm({
             className="w-full py-2.5 px-3 rounded-xl bg-amber-950/50 hover:bg-amber-900/60 border border-amber-500/40 text-amber-300 hover:text-amber-200 transition-all flex items-center justify-center space-x-2 shadow-[0_0_12px_rgba(245,158,11,0.2)] cursor-pointer"
           >
             <CheckCircle className="w-4 h-4 text-amber-400" />
-            <span className="font-bold">{lang === 'zh' ? '申请毕设算力账号' : 'Request Account'}</span>
+            <span className="font-bold">{lang === 'zh' ? '注册账号' : 'Register Account'}</span>
           </button>
         </div>
         <div className="pt-1 text-center">
@@ -308,7 +308,7 @@ export function CyberLoginForm({
             className="text-slate-400 hover:text-cyan-300 text-xs transition-colors inline-flex items-center space-x-1.5"
           >
             <UserPlus className="w-3.5 h-3.5 text-cyan-400" />
-            <span>{lang === 'zh' ? '课题组未授权？申请毕设算力账号' : 'Request Research Account'}</span>
+            <span>{lang === 'zh' ? '没有账号？点击注册' : 'No account? Register here'}</span>
           </button>
         </div>
       </div>
