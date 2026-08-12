@@ -308,3 +308,34 @@ export interface PredictionVsActualResponse {
     } | null
   }
 }
+
+// ========================================
+// 24h 负荷预测总览（历史回测验证 + 未来预测）
+// ========================================
+
+export interface HistoricalPair {
+  target_time: string
+  historical_actual: number
+  historical_forecast: number
+}
+
+export interface FutureForecast {
+  target_time: string
+  future_forecast: number
+}
+
+export interface LoadOverviewData {
+  generated_at: string
+  current: { time: string | null; actual_load_mw: number | null }
+  historical: {
+    pairs: HistoricalPair[]
+    metrics: { mae_mw: number; rmse_mw: number; mape: number | null } | null
+    note: string
+  }
+  future: { predictions: FutureForecast[]; note: string }
+}
+
+export interface LoadOverviewResponse {
+  status: string
+  data: LoadOverviewData
+}

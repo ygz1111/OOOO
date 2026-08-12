@@ -1,5 +1,7 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect, useCallback } from 'react'
 import { useApi } from '../contexts/ApiContext'
+import apiService from '../services/api'
+import { LoadOverviewData } from '../types'
 import MetricCard from '../components/MetricCard'
 import LoadForecastChart from '../components/LoadForecastChart'
 import { ErrorBanner, MetricCardSkeleton } from '../components/Skeleton'
@@ -28,6 +30,24 @@ type PanelTab = 'weights' | 'details' | 'status'
 
 const LoadForecast: React.FC = () => {
   const { prediction, isLoading, isInitialLoad, errors, loadPrediction } = useApi()
+
+  // 24h 负荷预测总览（历史回测验证 + 未来预测）供图表使用
+  const [overview, setOverview] = useState<LoadOverviewData | null>(null)
+  const [overviewLoading, setOverviewLoading] = useState(false)
+  const loadOverview = useCallback(async () => {
+    setOverviewLoading(true)
+    try {
+      const res = await apiService.getLoadOverview()
+      setOverview(res.data)
+    } catch {
+      // 图表静默降级：无 overview 时显示空态
+    } finally {
+      setOverviewLoading(false)
+    }
+  }, [])
+  useEffect(() => {
+    loadOverview()
+  }, [loadOverview])
   const [selectedTimeRange, setSelectedTimeRange] = useState('24h')
   const [forecastMode, setForecastMode] = useState('ensemble')
   const [panelTab, setPanelTab] = useState<PanelTab>('weights')
@@ -216,9 +236,9 @@ const LoadForecast: React.FC = () => {
             </div>
 
             <LoadForecastChart
-              data={prediction}
-              isLoading={isInitialLoad.prediction && isLoading.prediction}
-              isRefreshing={isLoading.prediction && !isInitialLoad.prediction}
+              data={overview}
+              isLoading={overviewLoading && !overview}
+              isRefreshing={overviewLoading && !!overview}
               height={450}
             />
 

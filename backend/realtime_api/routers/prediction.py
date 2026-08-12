@@ -304,3 +304,23 @@ async def get_prediction_history(
             status_code=500,
             detail=f"查询历史预测数据失败: {str(e)}"
         )
+
+
+# ============================================================================
+# 24h 负荷预测总览（历史回测验证 + 未来预测 + 当前实际）
+# ============================================================================
+
+@router.get(
+    "/api/prediction/overview",
+    summary="24h 负荷预测总览",
+    description=(
+        "历史 24h：用过去气象重新调用模型回测（historical_forecast），"
+        "与真实负荷（historical_actual）按 target_time 对齐对比，计算 MAE/RMSE/MAPE；"
+        "未来 24h：未来气象 → 模型推理（future_forecast，不含未来实际）；"
+        "当前实际负荷（ISO-NE 真实数据）。"
+    )
+)
+async def get_load_overview():
+    """返回历史回测 + 未来预测 + 当前实际负荷"""
+    from realtime_api.services.prediction_insight import generate_load_overview
+    return await generate_load_overview()

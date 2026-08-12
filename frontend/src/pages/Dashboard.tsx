@@ -1,9 +1,9 @@
-import React, { useMemo, useState, useEffect } from 'react'
+import React, { useMemo, useState, useEffect, useCallback } from 'react'
 import { useApi } from '../contexts/ApiContext'
 import MetricCard from '../components/MetricCard'
 import LoadForecastChart from '../components/LoadForecastChart'
 import apiService from '../services/api'
-import { PredictionVsActualPair } from '../types'
+import { LoadOverviewData } from '../types'
 import { MetricCardSkeleton, ErrorBanner } from '../components/Skeleton'
 import {
   TrendingUp,
@@ -45,15 +45,25 @@ const RefreshIndicator: React.FC<{ isRefreshing: boolean; lastUpdated: number | 
 const Dashboard: React.FC = () => {
   const { prediction, weather, systemStatus, isLoading, isInitialLoad, lastUpdated, errors } = useApi()
 
-  // 最近 24h 真实实际负荷（ISO-NE），叠加到负荷预测图负区间（实际每小时更新，加载一次即可）
-  const [actualLoad, setActualLoad] = useState<PredictionVsActualPair[]>([])
-  useEffect(() => {
-    let cancelled = false
-    apiService.getPredictionVsActual(24)
-      .then((res) => { if (!cancelled) setActualLoad(res.data?.pairs ?? []) })
-      .catch(() => { /* 无实际数据时静默 */ })
-    return () => { cancelled = true }
+  // 24h 负荷预测总览（历史回测验证 + 未来预测 + 当前实际）
+  const [overview, setOverview] = useState<LoadOverviewData | null>(null)
+  const [overviewError, setOverviewError] = useState<string | null>(null)
+  const [overviewLoading, setOverviewLoading] = useState(false)
+  const loadOverview = useCallback(async () => {
+    setOverviewLoading(true)
+    try {
+      const res = await apiService.getLoadOverview()
+      setOverview(res.data)
+      setOverviewError(null)
+    } catch (e) {
+      setOverviewError(e instanceof Error ? e.message : '加载预测总览失败')
+    } finally {
+      setOverviewLoading(false)
+    }
   }, [])
+  useEffect(() => {
+    loadOverview()
+  }, [loadOverview])
 
   // 计算关键指标 — useMemo 避免每次渲染都重新计算
   const metrics = useMemo(() => {
@@ -210,12 +220,17 @@ const Dashboard: React.FC = () => {
 
             {/* 传递 isInitialLoad 而非 isLoading，避免刷新时图表被骨架屏替换 */}
             <LoadForecastChart
-              data={prediction}
-              actualData={actualLoad}
-              isLoading={isInitialLoad.prediction && isLoading.prediction}
-              isRefreshing={isLoading.prediction && !isInitialLoad.prediction}
+              data={overview}
+              isLoading={overviewLoading && !overview}
+              isRefreshing={overviewLoading && !!overview}
               height={380}
             />
+
+            {overviewError && (
+              <div className="mt-4">
+                <ErrorBanner message={overviewError} onRetry={loadOverview} />
+              </div>
+            )}
 
             {errors.prediction && (
               <div className="mt-4">
