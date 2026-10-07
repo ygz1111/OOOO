@@ -4,7 +4,7 @@ Windows 本地运行的毕业设计项目。ISO-NE 页面提供负荷、电价�
 
 ## 首次准备环境
 
-需要 Node.js 20、Conda Python 3.10 环境和已运行的 MySQL。已有环境可以直接使用。
+需要 Node.js 24（24.15.0 或更新的 24.x）、Conda Python 3.10 / 3.11 环境和已运行的 MySQL。已有环境可以直接使用。
 
 ```powershell
 conda create -n smartgrid-tf python=3.10

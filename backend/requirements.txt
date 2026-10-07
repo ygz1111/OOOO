@@ -21,7 +21,8 @@ scikit-learn>=1.2.0
 
 # 数据库支持
 mysql-connector-python>=8.0.33
-SQLAlchemy>=2.0.0
+# 认证使用 AsyncSession；SQLAlchemy 2.1 的基础安装不再带 greenlet。
+SQLAlchemy[asyncio]>=2.0.0
 pymysql>=1.0.0
 aiomysql>=0.2.0
 

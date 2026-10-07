@@ -29,10 +29,12 @@ try:
     from sqlalchemy.engine import URL
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
     _SQLALCHEMY_ASYNC_AVAILABLE = True
-except ImportError:
+except ImportError as exc:
     _SQLALCHEMY_ASYNC_AVAILABLE = False
+    # 依赖缺失时仍可导入模块，并在会话请求处给出明确的安装提示。
+    AsyncSession = Any
     logger_warning = logging.getLogger("database")
-    logger_warning.warning("SQLAlchemy async 未安装，认证模块的 get_db_async 将不可用。请安装: pip install sqlalchemy[asyncio] aiomysql")
+    logger_warning.warning("SQLAlchemy async 不可用（%s），认证会话不可用。请安装: pip install sqlalchemy[asyncio] aiomysql", exc)
 
 
 # 配置日志
