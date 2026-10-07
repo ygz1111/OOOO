@@ -247,7 +247,13 @@ async def test_degraded_cache_retries_after_60_seconds_and_recovers_to_five_minu
 
 
 @pytest.mark.asyncio
-async def test_refresh_serves_existing_cache_immediately_and_shares_preload(scenario, monkeypatch):
+@pytest.mark.parametrize("uptime", [100.0, 10000.0])
+async def test_refresh_serves_existing_cache_immediately_and_shares_preload(scenario, monkeypatch, uptime):
+    # A fresh Linux runner may have less than five minutes of monotonic uptime.
+    # Isolate this clock from asyncio's real scheduling/deadline clock.
+    monkeypatch.setattr(live, "time", SimpleNamespace(
+        monotonic=lambda: uptime, perf_counter=live.time.perf_counter,
+    ))
     live.get_live_snapshot()
     started, release = threading.Event(), threading.Event()
     calls = []
@@ -257,16 +263,22 @@ async def test_refresh_serves_existing_cache_immediately_and_shares_preload(scen
         assert release.wait(5)
         return {"finished": True}
     monkeypatch.setattr(live, "get_live_snapshot", delayed)
-    monkeypatch.setattr(live, "_cached_at", 0)
+    monkeypatch.setattr(live, "_cached_at", uptime - live.COMPLETE_CACHE_SECONDS - 1)
+    pending = None
     try:
         first = await asyncio.wait_for(live.request_live_snapshot(), .5)
+        pending = live._inflight
+        assert pending is not None
         second = await asyncio.wait_for(live.request_live_snapshot(), .5)
-        assert started.is_set() and len(calls) == 1
+        assert live._inflight is pending
+        assert await asyncio.to_thread(started.wait, 1)
+        assert len(calls) == 1
         assert first["components"]["load"] == second["components"]["load"]
         assert first["quality"]["refresh_in_progress"]
     finally:
         release.set()
-        live._inflight.result(timeout=5)
+        if pending is not None:
+            pending.result(timeout=5)
 
 
 def test_one_snapshot_shared_with_interval_end_alignment(scenario):
