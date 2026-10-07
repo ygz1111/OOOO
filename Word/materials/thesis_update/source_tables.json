@@ -1,0 +1,691 @@
+[
+  [
+    [
+      "学    院：",
+      "　"
+    ],
+    [
+      "学生姓名：",
+      "　"
+    ],
+    [
+      "学    号：",
+      "　"
+    ],
+    [
+      "年    级：",
+      "　"
+    ],
+    [
+      "专业班级：",
+      "　"
+    ],
+    [
+      "指导教师：",
+      "　"
+    ],
+    [
+      "职    称：",
+      "　"
+    ],
+    [
+      "完成日期：",
+      "　"
+    ]
+  ],
+  [
+    [
+      "数据源",
+      "真实文件/接口",
+      "时间范围或粒度",
+      "论文使用字段/目标"
+    ],
+    [
+      "ISO-NE SMD",
+      "2017_smd_hourly.xlsx—2026_smd_hourly.xlsx；ISO NE CA 与八区工作表",
+      "小时Date+Hr_End，hour-ending",
+      "DA/RT Demand、DA/RT LMP、Dry_Bulb、Dew_Point 等"
+    ],
+    [
+      "五分钟估计分区",
+      "fiveminuteestimatedzonalload/day/{date}",
+      "五分钟记录→小时均值；八区 4001—4008",
+      "estimated_load_mw、estimated_btm_pv_mw"
+    ],
+    [
+      "气象数据",
+      "Open-Meteo Previous Runs；在线 Open-Meteo",
+      "小时；America/New_York",
+      "辐照、云量、2米温度、露点"
+    ]
+  ],
+  [
+    [
+      "模型输入",
+      "历史窗口",
+      "未来窗口",
+      "特征数",
+      "特征来源"
+    ],
+    [
+      "负荷 tf_load_split_v1",
+      "168 h",
+      "24 h",
+      "21 / 17",
+      "ca_features.parquet；LOAD_PAST/LOAD_FUTURE"
+    ],
+    [
+      "电价 tf_price_split_v1",
+      "168 h",
+      "24 h",
+      "26 / 17",
+      "ca_features.parquet；PRICE_PAST/PRICE_FUTURE"
+    ],
+    [
+      "光伏 pv_v2",
+      "96 h",
+      "24 h",
+      "28 / 27",
+      "pv_v2_features.parquet；PAST_COLS/FUTURE_COLS"
+    ]
+  ],
+  [
+    [
+      "模型",
+      "参数量",
+      "输入→输出",
+      "损失/优化器",
+      "训练轮数"
+    ],
+    [
+      "tf_load_split_v1",
+      "422333",
+      "(168,21)+(24,17)→(24,1) MW",
+      "Huber δ=0.75；AdamW 8e-4 / 1e-4",
+      "40（最大120）"
+    ],
+    [
+      "tf_price_split_v1",
+      "425897",
+      "(168,26)+(24,17)→(24,3) P10/P50/P90",
+      "Pinball；AdamW 8e-4 / 1e-4",
+      "21（最大120）"
+    ],
+    [
+      "pv_v2",
+      "246017",
+      "(96,28)+(24,27)→(24,1) MW",
+      "pv_loss；AdamW 4e-4 / 2e-5，clipnorm=1",
+      "38（种子42）"
+    ]
+  ],
+  [
+    [
+      "需求类别",
+      "已实现内容",
+      "实现位置/验证依据"
+    ],
+    [
+      "负荷预测",
+      "未来24小时负荷及可用的光伏/净负荷；实测与预测分开显示",
+      "prediction.py、prediction_pipeline.py、LoadForecast.tsx"
+    ],
+    [
+      "电价预测",
+      "P10/P50/P90未来24小时预测和日期回测",
+      "price.py、PriceForecast.tsx"
+    ],
+    [
+      "光伏预测",
+      "PV v2未来24小时出力、能量、峰值和历史回测",
+      "generation.py、SolarGeneration.tsx"
+    ],
+    [
+      "气象监控",
+      "六站点当前气象与历史查询",
+      "weather.py、WeatherMonitor.tsx"
+    ],
+    [
+      "历史数据与模型评估",
+      "新口径完整实测与预测配对；误差、趋势、漂移和回测",
+      "analytics.py、HistoricalAnalysis.tsx"
+    ],
+    [
+      "运行态势与状态",
+      "运行态势允许PV缺失，净负荷留空；健康状态独立显示",
+      "analytics.py、system.py、OperationSituation.tsx"
+    ],
+    [
+      "非功能需求",
+      "JSON接口、共享快照、分任务降级、质量标注、日志和健康检查",
+      "app.py、schemas、AuthMiddleware、测试文件"
+    ]
+  ],
+  [
+    [
+      "核心表",
+      "主键/唯一键",
+      "代表字段",
+      "用途"
+    ],
+    [
+      "weather_data",
+      "id；(location,timestamp)",
+      "timestamp、location、temperature_2m、dew_point_2m、cloud_cover、shortwave_radiation、data_quality_score",
+      "保存六站点气象数据和质量标识"
+    ],
+    [
+      "load_predictions",
+      "id；(prediction_id,target_timestamp)",
+      "prediction_timestamp、target_timestamp、load_forecast_mw、pv_estimation_mw、net_load_mw、model_type、inference_time_ms",
+      "保存24小时预测快照"
+    ],
+    [
+      "actual_load_data",
+      "id；(timestamp,region)",
+      "timestamp、actual_load_mw、region、data_source",
+      "按来源口径保存完整小时实测；新旧评价隔离"
+    ],
+    [
+      "model_performance",
+      "id",
+      "timestamp、model_name、model_version、total_inferences、successful_inferences、failed_inferences、average_inference_time_ms、device",
+      "保存模型调用和性能记录"
+    ],
+    [
+      "api_request_logs",
+      "id；request_id",
+      "timestamp、endpoint、method、status_code、response_time_ms、error_message",
+      "保存通用API请求日志"
+    ],
+    [
+      "api_access_logs",
+      "id",
+      "user_id、session_id、method、url、status_code、response_time_ms、error_message",
+      "保存认证访问和审计信息"
+    ],
+    [
+      "system_metrics",
+      "id",
+      "timestamp、cpu_percent、memory_percent、gpu_*、disk_usage_percent、process_count",
+      "保存系统资源监控值"
+    ],
+    [
+      "cache_performance",
+      "id",
+      "timestamp、cache_hits、cache_misses、cache_hit_ratio、cache_keys_count",
+      "保存缓存命中与耗时统计"
+    ],
+    [
+      "performance_alerts",
+      "id",
+      "timestamp、alert_type、metric_name、current_value、threshold、resolved",
+      "保存性能预警及处理状态"
+    ]
+  ],
+  [
+    [
+      "方法",
+      "URL",
+      "主要输入",
+      "主要输出/作用"
+    ],
+    [
+      "POST",
+      "/api/prediction/load",
+      "weather_data、historical_load、可选特征；force_refresh",
+      "24小时负荷、光伏估计、净负荷、模型信息"
+    ],
+    [
+      "POST",
+      "/api/prediction/batch",
+      "最多10个预测请求",
+      "批量预测结果和总耗时"
+    ],
+    [
+      "GET",
+      "/api/prediction/history",
+      "start_time、end_time、model_type、limit",
+      "历史预测记录"
+    ],
+    [
+      "GET",
+      "/api/prediction/overview",
+      "无",
+      "当前实际、历史24小时回测和未来24小时预测"
+    ],
+    [
+      "GET",
+      "/api/price/forecast",
+      "无",
+      "P10/P50/P90逐小时电价预测"
+    ],
+    [
+      "GET",
+      "/api/price/backtest",
+      "date（可选）",
+      "指定日期电价分位、实际RT-LMP和误差"
+    ],
+    [
+      "GET",
+      "/api/price/model-info",
+      "无",
+      "电价模型状态和元数据"
+    ],
+    [
+      "GET",
+      "/api/solar-generation",
+      "force_refresh（可选）",
+      "PV v2逐小时出力、能量、峰值和历史回测"
+    ],
+    [
+      "GET",
+      "/api/solar-generation/model-info",
+      "无",
+      "PV模型状态、结构和训练来源"
+    ],
+    [
+      "GET",
+      "/api/weather/current",
+      "force_refresh（可选）",
+      "六站点当前气象和区域平均"
+    ],
+    [
+      "GET",
+      "/api/weather/history",
+      "location、hours、limit",
+      "历史气象记录"
+    ],
+    [
+      "GET",
+      "/api/analytics/operations/situation",
+      "无",
+      "综合运行态势"
+    ],
+    [
+      "GET",
+      "/api/analytics/operations/feature-sensitivity",
+      "无",
+      "特征组遮蔽敏感度"
+    ],
+    [
+      "GET",
+      "/api/analytics/accuracy/stats、/recent、/drift/check",
+      "days、limit（按接口）",
+      "准确率、最近记录和漂移检查"
+    ],
+    [
+      "GET/POST",
+      "/api/analytics/quality/stats、/validate",
+      "weather_data（validate时）",
+      "数据质量统计或校验结果"
+    ],
+    [
+      "GET",
+      "/api/analytics/comparison/models、/temporal/trends、/error/distribution、/patterns/load",
+      "hours、days、time_window（按接口）",
+      "模型对比、趋势、误差和负荷模式"
+    ],
+    [
+      "GET",
+      "/api/analytics/report/comprehensive、/dashboard/metrics、/prediction-vs-actual",
+      "days、hours（按接口）",
+      "综合报告、仪表板指标和预测实际对比"
+    ],
+    [
+      "GET",
+      "/api/analytics/backtest/date",
+      "date、force_refresh（可选）",
+      "指定日期负荷历史回测"
+    ],
+    [
+      "GET",
+      "/api/analytics/diagnostics/hourly-errors",
+      "days",
+      "分小时误差诊断"
+    ],
+    [
+      "GET",
+      "/api/system/status、/api/system/metrics",
+      "hours、limit（metrics时）",
+      "系统状态或资源监控记录"
+    ],
+    [
+      "GET",
+      "/api/health、/liveness、/readiness",
+      "无",
+      "综合、存活和就绪检查"
+    ],
+    [
+      "POST",
+      "/api/auth/register、/login、/refresh、/logout、/logout-all、/change-password",
+      "用户、令牌或密码字段（按接口）",
+      "注册、令牌、登出和密码操作"
+    ],
+    [
+      "GET/DELETE",
+      "/api/auth/me、/sessions、/login-history、/session/{session_id}、/health",
+      "令牌；session_id（撤销时）",
+      "用户信息、会话、登录历史和认证健康状态"
+    ]
+  ],
+  [
+    [
+      "类别",
+      "真实项目环境",
+      "证据或说明"
+    ],
+    [
+      "操作系统与运行",
+      "Windows PowerShell；Docker Compose配置",
+      "start.ps1、stop.ps1、docker-compose.yml"
+    ],
+    [
+      "模型框架",
+      "TensorFlow 2.16.1；Keras 3.3.3",
+      "训练日志与模型资产元数据"
+    ],
+    [
+      "数据处理",
+      "Python；pandas；NumPy；scikit-learn StandardScaler",
+      "训练脚本与 requirements.txt；Python 精确版本未记录"
+    ],
+    [
+      "GPU",
+      "TensorFlow识别 /physical_device:GPU:0",
+      "具体GPU型号、CUDA/cuDNN版本未记录"
+    ],
+    [
+      "测试工具",
+      "pytest、pytest-asyncio、Vitest、TypeScript、ESLint",
+      "项目现有测试与构建记录"
+    ]
+  ],
+  [
+    [
+      "模型",
+      "数据切分",
+      "窗口与输入",
+      "训练设置"
+    ],
+    [
+      "tf_load_split_v1",
+      "2017-01-01—2026-04-30 / 2026-05-01—06-30 / 2026-07-01—08-01",
+      "168h+24h；21/17；722测试窗",
+      "AdamW 8e-4/1e-4；Huber δ=0.75；batch256；40/120 epoch"
+    ],
+    [
+      "tf_price_split_v1",
+      "同负荷模型",
+      "168h+24h；26/17；722测试窗",
+      "AdamW 8e-4/1e-4；Pinball；batch256；21/120 epoch"
+    ],
+    [
+      "pv_v2",
+      "2025-02-01—2026-06-30 / 2026-07-01—08-15 / 2026-08-16—09-10",
+      "96h+24h；28/27；600测试原点",
+      "AdamW 4e-4/2e-5；clipnorm=1；batch256；38/120 epoch；seed42"
+    ]
+  ],
+  [
+    [
+      "指标",
+      "数值",
+      "指标含义"
+    ],
+    [
+      "MAE",
+      "305.40 MW",
+      "全部17328个测试目标点的平均绝对误差"
+    ],
+    [
+      "RMSE",
+      "476.14 MW",
+      "全部测试目标点均方根误差"
+    ],
+    [
+      "MAPE",
+      "1.922%",
+      "|误差|/max(|实际值|,1)的平均百分比"
+    ],
+    [
+      "Bias",
+      "+91.49 MW",
+      "预测值减实际值的平均值，正值表示高估"
+    ],
+    [
+      "R²",
+      "0.97739",
+      "展开全部24步后的决定系数"
+    ],
+    [
+      "Peak MAE",
+      "567.18 MW",
+      "真实负荷不低于测试点75%分位时的MAE"
+    ]
+  ],
+  [
+    [
+      "方法",
+      "MAE (MW)",
+      "RMSE (MW)",
+      "MAPE"
+    ],
+    [
+      "tf_load_split_v1",
+      "305.40",
+      "476.14",
+      "1.922%"
+    ],
+    [
+      "DA Demand",
+      "759.34",
+      "956.63",
+      "5.227%"
+    ],
+    [
+      "naive-24",
+      "1536.40",
+      "1883.00",
+      "10.169%"
+    ],
+    [
+      "naive-168",
+      "2508.64",
+      "3211.55",
+      "15.792%"
+    ]
+  ],
+  [
+    [
+      "指标",
+      "数值",
+      "指标含义"
+    ],
+    [
+      "P50 MAE",
+      "13.266 USD/MWh",
+      "P50与实际RT-LMP的平均绝对误差"
+    ],
+    [
+      "P50 RMSE",
+      "26.494 USD/MWh",
+      "P50误差的均方根"
+    ],
+    [
+      "P50 Bias",
+      "-3.713 USD/MWh",
+      "P50减实际RT-LMP的平均值"
+    ],
+    [
+      "条件MAPE",
+      "22.072%",
+      "仅统计|actual|≥1 USD/MWh的点"
+    ],
+    [
+      "P10-P90 coverage",
+      "66.93%",
+      "实际值落入预测区间的比例；名义目标80%"
+    ],
+    [
+      "负价格点",
+      "0",
+      "测试目标中actual<0的点数"
+    ]
+  ],
+  [
+    [
+      "指标",
+      "验证集",
+      "测试集"
+    ],
+    [
+      "全时段 MAE (MW)",
+      "200.0083",
+      "236.1834"
+    ],
+    [
+      "全时段 RMSE (MW)",
+      "371.5957",
+      "474.2500"
+    ],
+    [
+      "白天 MAE (MW)",
+      "322.4406",
+      "412.4804"
+    ],
+    [
+      "白天 RMSE (MW)",
+      "472.4486",
+      "627.1846"
+    ],
+    [
+      "白天 WAPE",
+      "11.2447%",
+      "17.0532%"
+    ],
+    [
+      "真实值>500 MW 条件MAPE",
+      "15.7007%",
+      "20.3424%"
+    ],
+    [
+      "平均日能量误差",
+      "8.4395%",
+      "14.8323%"
+    ],
+    [
+      "平均峰值误差 (MW)",
+      "399.6831",
+      "610.2447"
+    ]
+  ],
+  [
+    [
+      "指标",
+      "PV v2",
+      "naive-24",
+      "相对降低"
+    ],
+    [
+      "全时段 MAE (MW)",
+      "236.1834",
+      "554.7419",
+      "57.42%"
+    ],
+    [
+      "全时段 RMSE (MW)",
+      "474.2500",
+      "1027.0332",
+      "53.82%"
+    ],
+    [
+      "白天 MAE (MW)",
+      "412.4804",
+      "968.8116",
+      "57.42%"
+    ],
+    [
+      "白天 RMSE (MW)",
+      "627.1846",
+      "1358.1940",
+      "53.82%"
+    ],
+    [
+      "白天 WAPE",
+      "17.0532%",
+      "40.0535%",
+      "57.42%"
+    ],
+    [
+      "条件MAPE",
+      "20.3424%",
+      "52.5258%",
+      "61.27%"
+    ],
+    [
+      "平均日能量误差",
+      "14.8323%",
+      "41.9825%",
+      "64.67%"
+    ],
+    [
+      "平均峰值误差 (MW)",
+      "610.2447",
+      "1474.2051",
+      "58.61%"
+    ]
+  ],
+  [
+    [
+      "检查项",
+      "真实结果",
+      "结论"
+    ],
+    [
+      "后端 pytest",
+      "本轮选定回归103/103通过",
+      "整点、采样完整性、独立降级、缓存及标签隔离；非全量重测"
+    ],
+    [
+      "前端 Vitest",
+      "本轮28/28通过",
+      "含时间过滤、空值、准备状态重试；非浏览器E2E"
+    ],
+    [
+      "TypeScript 类型检查",
+      "通过",
+      "无类型编译错误"
+    ],
+    [
+      "前端生产构建",
+      "通过",
+      "可生成生产构建"
+    ],
+    [
+      "TensorFlow 资产验证",
+      "通过",
+      "三模型输出形状正确"
+    ],
+    [
+      "Python 依赖检查",
+      "本轮未重做",
+      "此前有通过记录，不能推断当前环境已完整复检"
+    ],
+    [
+      "ESLint",
+      "此前记录0 error、28 warnings；本轮未重做",
+      "仅作为旧版本代码质量记录，不列为本轮通过项"
+    ],
+    [
+      "浏览器 E2E",
+      "尚未执行",
+      "还需真实联网、MySQL和浏览器联调"
+    ],
+    [
+      "数据库初始化脚本",
+      "17张表、6个视图",
+      "与docker/init-db.sql定义一致"
+    ]
+  ]
+]

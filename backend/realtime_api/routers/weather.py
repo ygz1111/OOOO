@@ -109,13 +109,21 @@ async def get_current_weather(
 
         fire_and_forget(_persist_weather, "weather")
 
-        # 区域平均
+        # 区域平均必须与上面的“当前站点值”使用同一时间切片。
+        # weather_df 同时包含一段历史/预报小时序列，直接对整列求平均会把
+        # 不同时间混在一起，导致区域卡片与 6 个站点当前值明显矛盾。
         regional_avg = {}
         param_cols = ["temperature_2m", "dew_point_2m", "relative_humidity_2m",
                       "wind_speed_10m", "cloud_cover", "shortwave_radiation"]
         for col in param_cols:
-            if col in weather_df.columns:
-                regional_avg[col] = round(float(weather_df[col].mean()), 1)
+            current_values = [
+                float(value)
+                for station in stations
+                if (value := getattr(station, col, None)) is not None
+                and pd.notna(value)
+            ]
+            if current_values:
+                regional_avg[col] = round(sum(current_values) / len(current_values), 1)
 
         return WeatherResponse(
             status="success",

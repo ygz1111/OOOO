@@ -1,42 +1,52 @@
 [build-system]
-requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "smartgrid-forecast"
 version = "1.0.0"
 description = "智能电网光伏负荷预测系统"
-readme = "README.md"
-requires-python = ">=3.8"
-license = {text = "MIT"}
+readme = {text = "基于 TensorFlow 的智能电网多任务预测系统后端", content-type = "text/markdown"}
+# 源码使用 PEP 604 联合类型（X | None）等 Python 3.10+ 语法；
+# TensorFlow 2.16.1 尚不支持 Python 3.13，因此明确可运行边界。
+requires-python = ">=3.10,<3.13"
+license = "MIT"
 authors = [
     {name = "毕业设计项目", email = "project@example.com"}
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "fastapi>=0.100.0",
-    "uvicorn>=0.23.0",
-    "httpx>=0.24.0",
+    "fastapi>=0.104.0,<1.0",
+    "uvicorn>=0.24.0,<1.0",
+    "pydantic>=2.4.0,<3.0",
     "pandas>=2.0.0",
-    "numpy>=1.24.0",
+    "numpy>=1.23.5,<2.0",
     "scikit-learn>=1.3.0",
-    "pytest>=7.4.0",
-    "pytest-cov>=4.1.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-mock>=3.11.0",
-    "pytest-benchmark>=4.0.0",
     "requests>=2.31.0",
     "aiofiles>=23.1.0",
+    "tensorflow==2.16.1",
+    "keras==3.3.3",
+    "h5py>=3.10.0,<4.0",
+    "pyarrow>=15.0.0,<17.0",
+    "mysql-connector-python>=8.0.33",
+    "SQLAlchemy>=2.0.0",
+    "pymysql>=1.0.0",
+    "aiomysql>=0.2.0",
+    "PyJWT>=2.8.0",
+    "bcrypt>=4.0.0,<6.0",
+    "email-validator>=2.0.0",
+    "PyYAML>=6.0",
+    "python-dotenv>=1.0.0",
     "psutil>=5.9.0",
+    "prometheus-client>=0.20.0",
+    "redis>=5.0.0",
 ]
 
 [project.optional-dependencies]
@@ -62,12 +72,15 @@ docs = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/smartgrid-forecast"
-Documentation = "https://github.com/yourusername/smartgrid-forecast#readme"
-Repository = "https://github.com/yourusername/smartgrid-forecast"
-Issues = "https://github.com/yourusername/smartgrid-forecast/issues"
+Homepage = "https://github.com/ygz1111/OOOO"
+Documentation = "https://github.com/ygz1111/OOOO#readme"
+Repository = "https://github.com/ygz1111/OOOO"
+Issues = "https://github.com/ygz1111/OOOO/issues"
 
-[tool.setuptools_scm]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["realtime_api*"]
+exclude = ["tests*", "scripts*", "models*", "config*", "logs*", "coverage_html*"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
@@ -123,8 +136,8 @@ exclude_lines = [
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
-    "pass",
-    "...",
+    '^\s*pass\s*$',
+    '^\s*\.\.\.\s*$'
 ]
 exclude_also = [
     "@abstractmethod",
@@ -138,7 +151,7 @@ directory = "coverage_html"
 
 [tool.black]
 line-length = 100
-target-version = ['py38']
+target-version = ['py310']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -179,7 +192,7 @@ per-file-ignores = [
 ]
 
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -220,7 +233,7 @@ max-line-length = 100
 
 [tool.ruff]
 line-length = 100
-target-version = "py38"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "B", "I"]
@@ -229,7 +242,7 @@ ignore = []
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = py38,py39,py310,py311,black,isort,flake8,mypy,pytest,coverage
+envlist = py310,py311,py312,black,isort,flake8,mypy,pytest,coverage
 isolated_build = true
 
 [testenv]

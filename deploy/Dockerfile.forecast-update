@@ -1,0 +1,4 @@
+# Use the already installed image; no package download or dependency changes.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+COPY backend/realtime_api/ /app/backend/realtime_api/

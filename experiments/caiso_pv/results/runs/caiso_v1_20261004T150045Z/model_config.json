@@ -1,0 +1,94 @@
+{
+  "past_hours": 96,
+  "horizon_hours": 24,
+  "hidden_units": 128,
+  "tcn_filters": 96,
+  "tcn_kernel_size": 3,
+  "tcn_dilations": [
+    1,
+    2,
+    4,
+    8
+  ],
+  "dropout": 0.15,
+  "l2": 1e-05,
+  "learning_rate": 0.001,
+  "attention_heads": 4,
+  "loss": "huber",
+  "models": [
+    "gru",
+    "tcn_gru",
+    "tcn_gru_attention"
+  ],
+  "seed": 42,
+  "max_epochs": 100,
+  "patience": 12,
+  "daylight_threshold_mw": 181.29069636333946,
+  "daylight_threshold_definition": "max(1 MW, 1% of Train positive-Solar 99th percentile)",
+  "target_name": "CAISO OASIS Solar Actual Generation",
+  "label_definition": "CAISO OASIS Solar Actual Generation",
+  "approved_label_definition": "CAISO OASIS Solar Actual Generation",
+  "future_weather_kind": "forecast_fixed_lead_day2",
+  "input_availability": {
+    "mathematical_time_guard": "Past intervals precede origin; all 24 targets stay in one partition",
+    "future_weather": "Recorded forecast availability upper bounds <= origin; conservative release assumptions are disclosed in Feature Config, not independently proved publication times",
+    "past_solar_publication": "UNVERIFIED: source may publish ACTUAL next day; historical first-publication times unavailable",
+    "past_weather_publication": "historical reconstruction may be revised after forecast origin; it is not an archived live input snapshot",
+    "online_readiness": "NOT_VERIFIED"
+  },
+  "dataset_sha256": "7ed08a1a55d79280b406d30eeb90db0aa5647a68a225602fae854c0a18670f4d",
+  "selection_protocol": "Validation MAE only; Test once after all training",
+  "selected_model": "gru",
+  "effective_batch_size": 64,
+  "candidates": {
+    "gru": {
+      "parameters": 198017,
+      "best_epoch": 21,
+      "best_val_loss": 0.014730725437402725,
+      "validation": {
+        "count": 16728,
+        "mae_mw": 611.221352316265,
+        "rmse_mw": 1019.9477337690815,
+        "r2": 0.9832011684430424,
+        "mape_daylight_pct": 9.961666806407766,
+        "daylight_count": 9824,
+        "bias_mw": -168.78758742134403
+      },
+      "training_seconds": 133.41687588399998,
+      "batch_size": 64
+    },
+    "tcn_gru": {
+      "parameters": 448097,
+      "best_epoch": 21,
+      "best_val_loss": 0.020973337814211845,
+      "validation": {
+        "count": 16728,
+        "mae_mw": 701.1313282245239,
+        "rmse_mw": 1209.191086845813,
+        "r2": 0.9763890688242527,
+        "mape_daylight_pct": 14.36101948022116,
+        "daylight_count": 9824,
+        "bias_mw": 138.71731488706794
+      },
+      "training_seconds": 291.78472043799997,
+      "batch_size": 64
+    },
+    "tcn_gru_attention": {
+      "parameters": 514401,
+      "best_epoch": 23,
+      "best_val_loss": 0.02357443980872631,
+      "validation": {
+        "count": 16728,
+        "mae_mw": 926.1032160129263,
+        "rmse_mw": 1274.6790703917272,
+        "r2": 0.973762349019522,
+        "mape_daylight_pct": 16.46442685627094,
+        "daylight_count": 9824,
+        "bias_mw": 129.08347910335092
+      },
+      "training_seconds": 342.299158582,
+      "batch_size": 64
+    }
+  },
+  "training_seconds": 770.4253155750001
+}

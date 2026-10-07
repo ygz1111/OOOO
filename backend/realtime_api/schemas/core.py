@@ -141,9 +141,12 @@ class HourlyPrediction(BaseModel):
     hour: int = Field(..., ge=0, le=23, description="小时 (0-23)")
     timestamp: str = Field(..., description="预测时间戳")
     load_forecast_mw: float = Field(..., description="负荷预测 (MW)")
-    pv_estimation_mw: float = Field(..., description="光伏估算 (MW)")
-    wind_estimation_mw: float = Field(default=0, description="风电估算 (MW)")
-    net_load_mw: float = Field(..., description="净负荷 (MW)")
+    pv_estimation_mw: Optional[float] = Field(None, description="光伏预测 (MW)，不可用时为空")
+    net_load_mw: Optional[float] = Field(None, description="净负荷 (MW)，光伏不可用时为空")
+    # 电价预测 (TF v2 模型输出, 2026-09; 旧引擎时为 None)
+    price_p10: Optional[float] = Field(None, description="电价预测 P10 (USD/MWh)")
+    price_p50: Optional[float] = Field(None, description="电价预测 P50 (USD/MWh)")
+    price_p90: Optional[float] = Field(None, description="电价预测 P90 (USD/MWh)")
 
 
 class ModelInfoResponse(BaseModel):
@@ -154,12 +157,32 @@ class ModelInfoResponse(BaseModel):
     loaded: bool = Field(..., description="是否已加载")
 
 
+class TFLoadPriceFeatureInput(BaseModel):
+    """TF v2 的完整在线特征窗口；字段名称和顺序由后端严格校验。"""
+    past: List[Dict[str, Any]] = Field(..., min_length=168, max_length=168)
+    future: List[Dict[str, Any]] = Field(..., min_length=24, max_length=24)
+
+
+class TFPVFeatureInput(BaseModel):
+    """TF PV 的完整在线特征窗口。"""
+    past: List[Dict[str, Any]] = Field(..., min_length=96, max_length=96)
+    future: List[Dict[str, Any]] = Field(..., min_length=24, max_length=24)
+
+
 class LoadPredictionRequest(BaseModel):
     """负荷预测请求模型"""
     weather_data: Optional[List[WeatherDataPoint]] = Field(
         None, description="气象数据列表(可选，不提供则自动从API获取)")
     historical_load: Optional[List[HistoricalLoadPoint]] = Field(
         None, description="历史负载数据列表(可选)")
+    tf_load_price_features: Optional[TFLoadPriceFeatureInput] = Field(
+        None,
+        description="TF v2 实时特征：过去168小时15特征 + 未来24小时13特征",
+    )
+    tf_pv_features: Optional[TFPVFeatureInput] = Field(
+        None,
+        description="TF PV 实时特征：过去96小时12特征 + 未来24小时7特征",
+    )
 
     class Config:
         json_schema_extra = {
@@ -179,6 +202,39 @@ class LoadPredictionResponse(BaseModel):
     inference_time_ms: float = Field(..., description="推理耗时(毫秒)")
     data_source: str = Field(..., description="数据来源")
     timestamp: str = Field(..., description="响应时间戳")
+    engine: Optional[str] = Field(None, description="TensorFlow 负荷模型引擎 (tf_v2/tf_split_v1)")
+    pv_engine: Optional[str] = Field(None, description="TensorFlow 光伏引擎 (tf_pv)")
+    origin: Optional[str] = Field(None, description="预测锚点（America/New_York 整点）")
+    input_quality: Optional[Dict[str, Any]] = Field(
+        None, description="在线输入质量、部分采样与日前特征补值信息"
+    )
+
+
+# ========================================
+# 电价预测 API 模型 (TensorFlow, 2026-09)
+# ========================================
+
+class HourlyPricePoint(BaseModel):
+    """每小时电价预测点"""
+    hour: int = Field(..., ge=0, le=23, description="小时 (0-23)")
+    timestamp: str = Field(..., description="预测时间戳")
+    price_p10: float = Field(..., description="电价预测 P10 (USD/MWh)")
+    price_p50: float = Field(..., description="电价预测 P50 (USD/MWh)")
+    price_p90: float = Field(..., description="电价预测 P90 (USD/MWh)")
+    load_forecast_mw: Optional[float] = Field(None, description="同窗口负荷预测 (MW)")
+
+
+class PriceForecastResponse(BaseModel):
+    """电价预测响应 (24h, p10/p50/p90)"""
+    status: str = Field(..., description="请求状态")
+    model: str = Field(default="tf_split_v1", description="模型标识")
+    model_name: str = Field(default="TF Split v1 (独立负荷 + 独立电价分位)", description="模型名称")
+    predictions: List[HourlyPricePoint] = Field(..., description="24小时电价预测")
+    origin: Optional[str] = Field(None, description="预测锚点时间")
+    inference_time_ms: float = Field(..., description="推理耗时(毫秒)")
+    data_source: str = Field(..., description="数据来源")
+    timestamp: str = Field(..., description="响应时间戳")
+    input_quality: Optional[Dict[str, Any]] = None
 
 
 class BatchPredictionRequest(BaseModel):
@@ -214,7 +270,6 @@ class LoadPredictionBase(BaseModel):
     target_timestamp: datetime = Field(..., description="预测目标时间")
     load_forecast_mw: float = Field(..., gt=0, description="负荷预测值(MW)")
     pv_estimation_mw: Optional[float] = Field(None, ge=0, description="光伏发电估算(MW)")
-    wind_estimation_mw: Optional[float] = Field(None, ge=0, description="风电发电估算(MW)")
     net_load_mw: Optional[float] = Field(None, description="净负荷(MW)")
     confidence_lower_mw: Optional[float] = Field(None, description="置信下限(MW)")
     confidence_upper_mw: Optional[float] = Field(None, description="置信上限(MW)")
@@ -521,10 +576,12 @@ class SystemStatusResponse(BaseModel):
     """系统状态响应"""
     status: str = Field(..., description="系统状态")
     models_loaded: int = Field(..., description="已加载模型数量")
+    models_total: int = Field(4, description="模型总数")
     device: str = Field(..., description="运行设备")
     total_inferences: int = Field(..., description="总推理次数")
     average_inference_time_ms: float = Field(..., description="平均推理时间")
     ensemble_weights: Dict[str, float] = Field(..., description="集成权重")
+    model_details: List[Dict[str, Any]] = Field(default_factory=list, description="当前生产模型明细")
     uptime_seconds: float = Field(..., description="运行时间 (秒)")
     memory_usage_mb: Optional[float] = Field(None, description="内存使用 (MB)")
     timestamp: str = Field(..., description="响应时间")
@@ -542,8 +599,10 @@ __all__ = [
     # API 数据点
     'WeatherDataPoint', 'HistoricalLoadPoint',
     # 负荷预测 API
-    'HourlyPrediction', 'ModelInfoResponse',
+    'HourlyPrediction', 'ModelInfoResponse', 'TFLoadPriceFeatureInput', 'TFPVFeatureInput',
     'LoadPredictionRequest', 'LoadPredictionResponse',
+    # 电价预测 API
+    'HourlyPricePoint', 'PriceForecastResponse',
     'BatchPredictionRequest', 'BatchPredictionResponse',
     # 负荷预测 数据库
     'LoadPredictionBase', 'LoadPredictionCreate', 'LoadPredictionDBResponse',

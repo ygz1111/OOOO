@@ -1,0 +1,107 @@
+{
+ "baselines": [
+  {
+   "name": "2025_naive24",
+   "n": 8736,
+   "RMSE_MW": 1383.7,
+   "MAE_MW": 957.9,
+   "MAPE_pct": 7.15
+  },
+  {
+   "name": "2025_naive168",
+   "n": 8592,
+   "RMSE_MW": 2041.0,
+   "MAE_MW": 1409.7,
+   "MAPE_pct": 10.34
+  },
+  {
+   "name": "2025_DA_as_pred",
+   "n": 8760,
+   "RMSE_MW": 843.4,
+   "MAE_MW": 631.3,
+   "MAPE_pct": 4.89
+  },
+  {
+   "name": "2025_profile24",
+   "n": 8760,
+   "RMSE_MW": 2227.6,
+   "MAE_MW": 1744.7,
+   "MAPE_pct": 13.06
+  },
+  {
+   "name": "2026_naive24",
+   "n": 5063,
+   "RMSE_MW": 1348.9,
+   "MAE_MW": 989.8,
+   "MAPE_pct": 7.42
+  },
+  {
+   "name": "2026_naive168",
+   "n": 4919,
+   "RMSE_MW": 2100.7,
+   "MAE_MW": 1552.4,
+   "MAPE_pct": 11.34
+  },
+  {
+   "name": "2026_DA_as_pred",
+   "n": 5087,
+   "RMSE_MW": 823.0,
+   "MAE_MW": 635.0,
+   "MAPE_pct": 4.92
+  },
+  {
+   "name": "2026_profile24",
+   "n": 5087,
+   "RMSE_MW": 2366.4,
+   "MAE_MW": 1869.8,
+   "MAPE_pct": 13.86
+  }
+ ],
+ "DA_RT_gap": {
+  "2025_mean_abs": 631.3,
+  "2025_std": 702.6,
+  "2026_mean_abs": 635.0,
+  "2026_std": 732.3
+ },
+ "correlations": {
+  "2024_corr_RT_DryBulb": 0.206,
+  "2024_corr_RT_CDD65": 0.643,
+  "2024_corr_RT_HDD65": -0.022,
+  "2024_corr_RT_DewPoint": 0.156,
+  "2024_mean_RT": 13058.1,
+  "2024_std_RT": 2569.8,
+  "2024_p50_RT": 12740.4,
+  "2025_corr_RT_DryBulb": 0.034,
+  "2025_corr_RT_CDD65": 0.574,
+  "2025_corr_RT_HDD65": 0.141,
+  "2025_corr_RT_DewPoint": -0.033,
+  "2025_mean_RT": 13203.7,
+  "2025_std_RT": 2693.9,
+  "2025_p50_RT": 12885.4,
+  "2026_corr_RT_DryBulb": -0.084,
+  "2026_corr_RT_CDD65": 0.482,
+  "2026_corr_RT_HDD65": 0.245,
+  "2026_corr_RT_DewPoint": -0.129,
+  "2026_mean_RT": 13442.1,
+  "2026_std_RT": 2723.5,
+  "2026_p50_RT": 13108.1
+ },
+ "profile_sample": {
+  "weekday_hours_mean": 13300.6,
+  "weekend_hours_mean": 12447.8,
+  "mean_by_hour_p50_weekday": [
+   12170.5,
+   11657.2,
+   13439.8,
+   15595.2,
+   13172.0
+  ],
+  "mean_by_hour_p50_weekend": [
+   11893.3,
+   10780.0,
+   12364.7,
+   14675.0,
+   12749.0
+  ]
+ }
+}

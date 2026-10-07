@@ -59,7 +59,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
             <div className="absolute inset-0 rounded-full bg-danger-500/10 blur-2xl" aria-hidden="true" />
             <AlertTriangle className="w-16 h-16 text-danger-400 relative z-10" aria-hidden="true" />
           </div>
-          <h2 className="text-xl font-bold text-white mb-2">
+          <h2 className="text-xl font-semibold text-dark-200 mb-2">
             页面渲染出错
           </h2>
           <p className="text-sm text-dark-300 mb-1 max-w-md">

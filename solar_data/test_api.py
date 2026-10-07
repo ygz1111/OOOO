@@ -2,10 +2,13 @@
 """快速测试 NSRDB API 连通性"""
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
+import os
 import requests
 import json
 
-API_KEY = "QfH6aBgNoDFOMjxbA4NIBnk1o2NeRBO1nQO21Rb9"
+API_KEY = os.environ.get("NREL_API_KEY", "").strip()
+if not API_KEY:
+    raise SystemExit("缺少 NREL_API_KEY 环境变量；请使用自己的密钥，不要写入源码。")
 BASE_URL = "https://developer.nrel.gov/api/nsrdb/v2/solar/psm3-download.json"
 
 params = {

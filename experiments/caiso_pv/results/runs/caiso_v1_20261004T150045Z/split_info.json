@@ -1,0 +1,58 @@
+{
+  "timezone": "America/Los_Angeles",
+  "time_basis": "UTC hour-start; half-open [start,end) physical-hour intervals",
+  "latest_complete_local_date": "2026-09-27",
+  "first_complete_local_date": "2024-01-21",
+  "partition_axis_basis": "complete official labels plus all configured weather sites and fields",
+  "source_axis_start_utc": "2024-01-21T08:00:00+00:00",
+  "source_axis_end_exclusive_utc": "2026-09-28T07:00:00+00:00",
+  "requested_label_axis_start_utc": "2024-01-01T08:00:00+00:00",
+  "requested_label_axis_end_exclusive_utc": "2026-10-04T07:00:00+00:00",
+  "internal_missing_hours_policy": "retain the continuous UTC axis; reject affected windows without interpolation",
+  "validation_calendar_days": 30,
+  "test_calendar_days": 60,
+  "partitions": {
+    "train": {
+      "start_utc": "2024-01-21T08:00:00+00:00",
+      "end_exclusive_utc": "2026-06-30T07:00:00+00:00",
+      "start_local": "2024-01-21T00:00:00-08:00",
+      "end_exclusive_local": "2026-06-30T00:00:00-07:00",
+      "samples": 17101,
+      "target_points": 410424,
+      "first_origin_utc": "2024-01-21T08:00:00+00:00",
+      "last_origin_utc": "2026-06-29T07:00:00+00:00",
+      "rejected_windows": {
+        "missing_labels_or_history": 4259,
+        "missing_available_forecast": 0
+      }
+    },
+    "val": {
+      "start_utc": "2026-06-30T07:00:00+00:00",
+      "end_exclusive_utc": "2026-07-30T07:00:00+00:00",
+      "start_local": "2026-06-30T00:00:00-07:00",
+      "end_exclusive_local": "2026-07-30T00:00:00-07:00",
+      "samples": 697,
+      "target_points": 16728,
+      "first_origin_utc": "2026-06-30T07:00:00+00:00",
+      "last_origin_utc": "2026-07-29T07:00:00+00:00",
+      "rejected_windows": {
+        "missing_labels_or_history": 0,
+        "missing_available_forecast": 0
+      }
+    },
+    "test": {
+      "start_utc": "2026-07-30T07:00:00+00:00",
+      "end_exclusive_utc": "2026-09-28T07:00:00+00:00",
+      "start_local": "2026-07-30T00:00:00-07:00",
+      "end_exclusive_local": "2026-09-28T00:00:00-07:00",
+      "samples": 882,
+      "target_points": 21168,
+      "first_origin_utc": "2026-07-30T07:00:00+00:00",
+      "last_origin_utc": "2026-09-27T07:00:00+00:00",
+      "rejected_windows": {
+        "missing_labels_or_history": 535,
+        "missing_available_forecast": 0
+      }
+    }
+  }
+}

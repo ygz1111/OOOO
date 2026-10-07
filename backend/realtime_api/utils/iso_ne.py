@@ -7,14 +7,14 @@ ISO-NE 实际负荷拉取（可复用模块）
   - realtime_api/tasks/background.py（后台定时自动拉取）
 
 认证：ISO Express 注册邮箱 + 密码（HTTP Basic Auth）
-端点：/fiveminutesystemload/day/{YYYYMMDD}（5 分钟真实系统负荷）
-转换：5 分钟 LoadMw 按小时平均 → 整点时间戳（东部时区 naive，与预测对齐）
+端点：/fiveminuteestimatedzonalload/day/{YYYYMMDD}
+转换：八区负荷小时均值之和 → 小时结束时间；仅完整12次采样用于评价。
 """
 import logging
-from datetime import date, datetime
-from zoneinfo import ZoneInfo
+from datetime import date
 
 import requests
+from realtime_api.utils.iso_ne_intervals import ACTUAL_REGION, ACTUAL_SOURCE, records, zonal_hourly
 
 logger = logging.getLogger(__name__)
 
@@ -25,14 +25,14 @@ def fetch_hourly_actual_load(day: date, username: str, password: str) -> list:
     """拉取某天的小时级实际系统负荷 → [(整点 datetime, 小时平均 MW), ...]
 
     Args:
-        day: 目标日期（支持当天/历史日期；当天返回已发生小时的数据）
+        day: 区间开始日期；仅返回已结束且八区采样完整的小时
         username: ISO Express 注册邮箱
         password: ISO Express 密码
 
     Returns:
         按时间升序的 [(naive 东部整点时间, 平均 MW)] 列表
     """
-    url = f"{ISO_NE_BASE}/fiveminutesystemload/day/{day.strftime('%Y%m%d')}"
+    url = f"{ISO_NE_BASE}/fiveminuteestimatedzonalload/day/{day.strftime('%Y%m%d')}"
     resp = requests.get(
         url, auth=(username, password), timeout=30,
         headers={"Accept": "application/json"},
@@ -40,27 +40,8 @@ def fetch_hourly_actual_load(day: date, username: str, password: str) -> list:
     resp.raise_for_status()
     data = resp.json()
 
-    loads = data.get("FiveMinSystemLoads", {})
-    items = loads.get("FiveMinSystemLoad", [])
-
-    east = ZoneInfo("America/New_York")
-    hourly = {}
-    for it in items:
-        begin = it.get("BeginDate")
-        mw = it.get("LoadMw")
-        if begin is None or mw is None:
-            continue
-        # 带偏移时间戳 → 东部墙钟 naive（与预测 target_timestamp 对齐）
-        ts = datetime.fromisoformat(begin)
-        if ts.tzinfo is not None:
-            ts = ts.astimezone(east).replace(tzinfo=None)
-        hour_key = ts.replace(minute=0, second=0, microsecond=0)
-        hourly.setdefault(hour_key, []).append(float(mw))
-
-    rows = [
-        (hour, sum(v) / len(v)) for hour, v in sorted(hourly.items())
-    ]
-    return rows
+    load, _ = zonal_hourly(records(data, "five_min_estimated_zonal_load"), minimum_samples=12)
+    return [(ts.to_pydatetime(), float(value)) for ts, value in load["load"].items()]
 
 
 def get_credentials() -> tuple:
@@ -73,9 +54,9 @@ def get_credentials() -> tuple:
     return None, None
 
 
-async def persist_actual_load(rows, data_source: str = "iso_ne",
-                              region: str = "NewEngland") -> dict:
-    """写入 actual_load_data + 回填 load_predictions.actual_load_mw（幂等）
+async def persist_actual_load(rows, data_source: str = ACTUAL_SOURCE,
+                              region: str = ACTUAL_REGION) -> dict:
+    """隔离存储新口径小时标签（幂等），不改写历史预测记录。
 
     Returns:
         {"inserted": int, "backfilled": int}
@@ -95,17 +76,9 @@ async def persist_actual_load(rows, data_source: str = "iso_ne",
         except Exception as e:
             logger.warning(f"写入失败 {ts}: {e}")
 
+    # Evaluation joins versioned actuals at read time. Do not rewrite legacy
+    # predictions or populate different models with a mismatched load definition.
     backfilled = 0
-    for ts, mw in rows:
-        try:
-            await db_manager.execute_sql(
-                """UPDATE load_predictions SET actual_load_mw = %s
-                   WHERE target_timestamp = %s AND actual_load_mw IS NULL""",
-                (mw, ts),
-            )
-            backfilled += 1
-        except Exception as e:
-            logger.warning(f"回填失败 {ts}: {e}")
     logger.info(f"实际负荷入库: 写入 {inserted} 条, 回填 {backfilled} 条")
     return {"inserted": inserted, "backfilled": backfilled}
 

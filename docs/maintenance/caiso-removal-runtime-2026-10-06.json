@@ -1,0 +1,13 @@
+{
+  "backend_status": "healthy",
+  "models_loaded": 3,
+  "frontend_http": 200,
+  "frontend_request_accept": "text/html",
+  "proxy_backend_status": "healthy",
+  "caiso_api_paths": [],
+  "live_frontend_app_has_caiso": false,
+  "iso_ne_solar_route_present": true,
+  "iso_ne_solar_model_info_present": true,
+  "anonymous_iso_ne_solar_status": 401,
+  "runtime_caiso_cache_present": false
+}

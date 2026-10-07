@@ -2,6 +2,7 @@
 """认证中间件白名单逻辑测试：修复 '/' 前缀全放行漏洞后的行为。"""
 import os
 import sys
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -31,7 +32,7 @@ PROTECTED_PATHS = [
     '/api/auth/me', '/api/auth/sessions', '/api/auth/refresh', '/api/auth/logout',
     '/api/auth/change-password', '/api/system/metrics',
     '/api/analytics/accuracy/stats', '/api/analytics/drift/check',
-    '/api/solar-generation', '/api/wind-generation', '/api/weather/history',
+    '/api/solar-generation', '/api/weather/history',
 ]
 
 
@@ -59,3 +60,21 @@ class TestShouldSkipAuth:
         assert mw._should_skip_auth('/api/auth/login') is True
         assert mw._should_skip_auth('/api/auth/me') is False
         assert mw._should_skip_auth('/api/auth/sessions') is False
+
+
+@pytest.mark.asyncio
+async def test_browser_probes_are_quiet_but_business_and_similar_paths_require_auth():
+    import httpx
+    from fastapi import FastAPI
+    app = FastAPI()
+    app.add_middleware(AuthMiddleware)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        for path in ('/favicon.ico', '/.well-known/appspecific/com.chrome.devtools.json'):
+            assert (await client.get(path)).status_code == 204
+            assert (await client.head(path)).status_code == 204
+            assert (await client.post(path)).status_code == 401
+            assert (await client.get(path + '/business')).status_code == 401
+        for path in PROTECTED_PATHS:
+            if path == '/api/auth/refresh':
+                continue  # refresh token self-authenticates at its existing router
+            assert (await client.get(path)).status_code == 401

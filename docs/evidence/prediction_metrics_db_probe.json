@@ -1,0 +1,306 @@
+{
+  "7": {
+    "latest": {
+      "records": 53,
+      "query_ms": 14.52
+    },
+    "all_vintages": {
+      "records": 365,
+      "query_ms": 26.72
+    },
+    "grouping_ms": 14.04,
+    "groups": [
+      {
+        "key": "1_6",
+        "label": "提前 1–6 小时",
+        "min_hour": 1,
+        "max_hour": 6,
+        "count": 16,
+        "mae": 431.60599999999965,
+        "rmse": 670.2246066981946,
+        "mape": 3.927421346526938,
+        "bias": 220.93762500000014,
+        "r2": 0.662724063213949,
+        "input_quality": [
+          {
+            "quality": "complete",
+            "label": "完整输入",
+            "count": 0,
+            "mae": null,
+            "rmse": null,
+            "mape": null,
+            "bias": null,
+            "r2": null
+          },
+          {
+            "quality": "estimated",
+            "label": "估计补齐输入",
+            "count": 16,
+            "mae": 431.60599999999965,
+            "rmse": 670.2246066981946,
+            "mape": 3.927421346526938,
+            "bias": 220.93762500000014,
+            "r2": 0.662724063213949
+          },
+          {
+            "quality": "unknown",
+            "label": "历史输入质量未留档",
+            "count": 0,
+            "mae": null,
+            "rmse": null,
+            "mape": null,
+            "bias": null,
+            "r2": null
+          }
+        ]
+      },
+      {
+        "key": "7_12",
+        "label": "提前 7–12 小时",
+        "min_hour": 7,
+        "max_hour": 12,
+        "count": 16,
+        "mae": 543.1276250000001,
+        "rmse": 765.6407617233917,
+        "mape": 4.774971232669801,
+        "bias": 401.0855000000006,
+        "r2": 0.7813827194432731,
+        "input_quality": [
+          {
+            "quality": "complete",
+            "label": "完整输入",
+            "count": 0,
+            "mae": null,
+            "rmse": null,
+            "mape": null,
+            "bias": null,
+            "r2": null
+          },
+          {
+            "quality": "estimated",
+            "label": "估计补齐输入",
+            "count": 16,
+            "mae": 543.1276250000001,
+            "rmse": 765.6407617233917,
+            "mape": 4.774971232669801,
+            "bias": 401.0855000000006,
+            "r2": 0.7813827194432731
+          },
+          {
+            "quality": "unknown",
+            "label": "历史输入质量未留档",
+            "count": 0,
+            "mae": null,
+            "rmse": null,
+            "mape": null,
+            "bias": null,
+            "r2": null
+          }
+        ]
+      },
+      {
+        "key": "13_24",
+        "label": "提前 13–24 小时",
+        "min_hour": 13,
+        "max_hour": 24,
+        "count": 28,
+        "mae": 370.45975,
+        "rmse": 415.3674495105422,
+        "mape": 3.114460332795371,
+        "bias": -229.92524999999998,
+        "r2": 0.9063819302156846,
+        "input_quality": [
+          {
+            "quality": "complete",
+            "label": "完整输入",
+            "count": 0,
+            "mae": null,
+            "rmse": null,
+            "mape": null,
+            "bias": null,
+            "r2": null
+          },
+          {
+            "quality": "estimated",
+            "label": "估计补齐输入",
+            "count": 28,
+            "mae": 370.45975,
+            "rmse": 415.3674495105422,
+            "mape": 3.114460332795371,
+            "bias": -229.92524999999998,
+            "r2": 0.9063819302156846
+          },
+          {
+            "quality": "unknown",
+            "label": "历史输入质量未留档",
+            "count": 0,
+            "mae": null,
+            "rmse": null,
+            "mape": null,
+            "bias": null,
+            "r2": null
+          }
+        ]
+      }
+    ],
+    "excluded": {
+      "invalid_timestamp": 0,
+      "ambiguous_timestamp": 0,
+      "noncausal": 0,
+      "outside_24_hours": 0,
+      "invalid_values": 0
+    }
+  },
+  "30": {
+    "latest": {
+      "records": 228,
+      "query_ms": 88.51
+    },
+    "all_vintages": {
+      "records": 6985,
+      "query_ms": 356.68
+    },
+    "grouping_ms": 10.01,
+    "groups": [
+      {
+        "key": "1_6",
+        "label": "提前 1–6 小时",
+        "min_hour": 1,
+        "max_hour": 6,
+        "count": 16,
+        "mae": 431.60599999999965,
+        "rmse": 670.2246066981946,
+        "mape": 3.927421346526938,
+        "bias": 220.93762500000014,
+        "r2": 0.662724063213949,
+        "input_quality": [
+          {
+            "quality": "complete",
+            "label": "完整输入",
+            "count": 0,
+            "mae": null,
+            "rmse": null,
+            "mape": null,
+            "bias": null,
+            "r2": null
+          },
+          {
+            "quality": "estimated",
+            "label": "估计补齐输入",
+            "count": 16,
+            "mae": 431.60599999999965,
+            "rmse": 670.2246066981946,
+            "mape": 3.927421346526938,
+            "bias": 220.93762500000014,
+            "r2": 0.662724063213949
+          },
+          {
+            "quality": "unknown",
+            "label": "历史输入质量未留档",
+            "count": 0,
+            "mae": null,
+            "rmse": null,
+            "mape": null,
+            "bias": null,
+            "r2": null
+          }
+        ]
+      },
+      {
+        "key": "7_12",
+        "label": "提前 7–12 小时",
+        "min_hour": 7,
+        "max_hour": 12,
+        "count": 16,
+        "mae": 543.1276250000001,
+        "rmse": 765.6407617233917,
+        "mape": 4.774971232669801,
+        "bias": 401.0855000000006,
+        "r2": 0.7813827194432731,
+        "input_quality": [
+          {
+            "quality": "complete",
+            "label": "完整输入",
+            "count": 0,
+            "mae": null,
+            "rmse": null,
+            "mape": null,
+            "bias": null,
+            "r2": null
+          },
+          {
+            "quality": "estimated",
+            "label": "估计补齐输入",
+            "count": 16,
+            "mae": 543.1276250000001,
+            "rmse": 765.6407617233917,
+            "mape": 4.774971232669801,
+            "bias": 401.0855000000006,
+            "r2": 0.7813827194432731
+          },
+          {
+            "quality": "unknown",
+            "label": "历史输入质量未留档",
+            "count": 0,
+            "mae": null,
+            "rmse": null,
+            "mape": null,
+            "bias": null,
+            "r2": null
+          }
+        ]
+      },
+      {
+        "key": "13_24",
+        "label": "提前 13–24 小时",
+        "min_hour": 13,
+        "max_hour": 24,
+        "count": 28,
+        "mae": 370.45975,
+        "rmse": 415.3674495105422,
+        "mape": 3.114460332795371,
+        "bias": -229.92524999999998,
+        "r2": 0.9063819302156846,
+        "input_quality": [
+          {
+            "quality": "complete",
+            "label": "完整输入",
+            "count": 0,
+            "mae": null,
+            "rmse": null,
+            "mape": null,
+            "bias": null,
+            "r2": null
+          },
+          {
+            "quality": "estimated",
+            "label": "估计补齐输入",
+            "count": 28,
+            "mae": 370.45975,
+            "rmse": 415.3674495105422,
+            "mape": 3.114460332795371,
+            "bias": -229.92524999999998,
+            "r2": 0.9063819302156846
+          },
+          {
+            "quality": "unknown",
+            "label": "历史输入质量未留档",
+            "count": 0,
+            "mae": null,
+            "rmse": null,
+            "mape": null,
+            "bias": null,
+            "r2": null
+          }
+        ]
+      }
+    ],
+    "excluded": {
+      "invalid_timestamp": 0,
+      "ambiguous_timestamp": 0,
+      "noncausal": 0,
+      "outside_24_hours": 0,
+      "invalid_values": 0
+    }
+  }
+}

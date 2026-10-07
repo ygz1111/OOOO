@@ -25,7 +25,7 @@ API 端点:
         ├── prediction.py  — 预测路由
         ├── weather.py     — 气象路由
         ├── system.py      — 系统状态路由
-        ├── generation.py  — 光伏/风电路由
+        ├── generation.py  — 光伏路由
         ├── analytics.py   — 分析路由
         └── auth.py        — 认证路由
 
@@ -39,7 +39,6 @@ API 端点:
 作者: 毕业设计项目
 """
 
-from realtime_api.utils.background import fire_and_forget
 import os
 import sys
 import time
@@ -55,6 +54,11 @@ load_dotenv(
         '.env',
     )
 )
+
+# 任何 ``realtime_api`` 导入都必须位于根目录 .env 加载之后。导入子模块时
+# Python 会先执行包的 ``__init__.py``，而该文件又会间接初始化配置单例；若
+# 提前导入，JWT/数据库等环境变量会被配置文件默认值永久缓存到当前进程。
+from realtime_api.utils.background import fire_and_forget
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -80,6 +84,7 @@ from realtime_api.database import init_database, close_database, db_manager
 
 # 导入服务容器
 from realtime_api.services.container import (
+    active_model_runtime_stats,
     services,
     init_services,
     release_services,
@@ -102,6 +107,7 @@ from realtime_api.routers.prediction import router as prediction_router
 from realtime_api.routers.weather import router as weather_router
 from realtime_api.routers.system import router as system_router
 from realtime_api.routers.generation import router as generation_router
+from realtime_api.routers.price import router as price_router
 
 # 导入 schemas (用于错误响应)
 from realtime_api.schemas import ErrorResponse
@@ -167,9 +173,16 @@ async def lifespan(app: FastAPI):
     init_services()
 
     logger.info(f"   API 文档: http://localhost:8000/docs")
-    logger.info(f"   MySQL 数据库: {'已连接' if services.inference_service.is_ready() else '连接异常'}")
+    runtime = active_model_runtime_stats()
+    logger.info(
+        f"   预测模型: {runtime['backend']} "
+        f"({runtime['models_loaded']}/{runtime['models_total']} ready)"
+    )
 
     # 启动后台定时任务
+    if str(config.get('models.engines.inference_mode', 'live')).lower() == 'live':
+        from realtime_api.services.live_forecast import start_live_preload
+        start_live_preload()
     start_background_tasks()
 
     yield
@@ -197,20 +210,21 @@ app = FastAPI(
     description="""
     ## 实时电力负荷预测 API
 
-    基于深度学习的电力负荷预测系统，整合4个模型（LSTM、BiGRU、TCN、Transformer）
-    进行加权集成预测，同时提供光伏发电估算和净负荷计算。
+    基于 TensorFlow 的智能电网多任务预测系统，使用相互独立的负荷预测、
+    电价分位预测和光伏预测三个生产模型，并提供净负荷计算。
 
     ### 功能
     - **负荷预测**: 24小时系统负荷预测
     - **气象数据**: 获取新英格兰地区6个气象站实时数据
-    - **光伏估算**: 基于辐射数据估算光伏发电量
+    - **电价预测**: 未来24小时 P10/P50/P90 分位电价预测
+    - **光伏预测**: TensorFlow 模型预测 ISO-NE BTM 光伏发电量
     - **系统监控**: 推理性能、模型状态监控
     - **用户认证**: JWT认证与RBAC权限控制
     - **访问控制**: API权限管理与操作审计
 
     ### 数据流
     ```
-    Open-Meteo API → 气象数据 → 特征工程(38维) → 归一化 → 模型推理 → 预测结果
+    ISO-NE + Open-Meteo → 任务特征工程 → TensorFlow 模型推理 → 预测结果
     ```
     """,
     version=config.get('system.version', '1.1.0'),
@@ -270,19 +284,33 @@ async def request_logging_middleware(request: Request, call_next):
 
     logger.info(f"→ {method} {path} from {client}")
 
-    # 超时控制
+    # 超时控制。预测总览需要拉取/聚合 6 个站点的历史气象，冷缓存或网络波动时
+    # 明显超过普通 API 的 30 秒；此前统一 30 秒会取消正在执行的数据库/线程池任务，
+    # 既返回 504 又可能留下 SQLAlchemy 会话关闭竞争。为重计算端点使用更合理的上限。
+    long_running_paths = {
+        "/api/prediction/load",
+        "/api/prediction/overview",
+        "/api/prediction/batch",
+        "/api/price/forecast",
+        "/api/solar-generation",
+        "/api/analytics/operations/situation",
+        "/api/analytics/operations/feature-sensitivity",
+        "/api/analytics/backtest/date",
+        "/api/price/backtest",
+    }
+    timeout_seconds = 120.0 if path in long_running_paths else 45.0
     try:
         response = await asyncio.wait_for(
             call_next(request),
-            timeout=30.0,
+            timeout=timeout_seconds,
         )
     except asyncio.TimeoutError:
-        logger.error(f"⏰ 请求超时: {method} {path}")
+        logger.error(f"⏰ 请求超时: {method} {path} ({timeout_seconds:.0f}s)")
         return JSONResponse(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
             content=ErrorResponse(
                 error="timeout",
-                message="请求处理超时 (30秒)",
+                message=f"请求处理超时 ({timeout_seconds:.0f}秒)",
                 timestamp=eastern_now().isoformat(),
             ).model_dump(mode="json"),
         )
@@ -371,6 +399,7 @@ app.include_router(prediction_router)
 app.include_router(weather_router)
 app.include_router(system_router)
 app.include_router(generation_router)
+app.include_router(price_router)
 
 
 # ============================================================================
@@ -383,16 +412,19 @@ async def root():
     return {
         "service": "智能电网负荷预测系统",
         "version": "1.1.0",
-        "features": ["负荷预测", "光伏ML预测", "风电估算", "气象数据", "用户认证", "访问控制"],
+        "features": ["负荷预测", "电价预测", "光伏ML预测", "气象数据", "用户认证", "访问控制"],
         "docs": "/docs",
         "endpoints": [
             "POST /api/prediction/load",
+            "GET  /api/prediction/overview",
+            "GET  /api/price/forecast",
+            "GET  /api/price/backtest",
+            "GET  /api/price/model-info",
             "GET  /api/weather/current",
             "GET  /api/system/status",
             "GET  /api/solar-generation - 光伏ML预测",
+            "GET  /api/solar-generation/backtest - 光伏历史回测",
             "GET  /api/solar-generation/model-info - 光伏模型信息",
-            "GET  /api/wind-generation",
-            "GET  /api/wind-generation/power-curve",
             "POST /api/prediction/batch (需认证)",
             "GET  /api/prediction/history",
             "GET  /api/weather/history",
@@ -417,9 +449,9 @@ async def root():
             "GET  /api/analytics/dashboard/metrics",
         ],
         "auth": [
-            "POST /auth/register",
-            "POST /auth/login",
-            "GET  /auth/me",
+            "POST /api/auth/register",
+            "POST /api/auth/login",
+            "GET  /api/auth/me",
         ],
     }
 

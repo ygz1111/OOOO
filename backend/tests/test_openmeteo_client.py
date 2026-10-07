@@ -344,6 +344,18 @@ class TestDataValidation(unittest.TestCase):
         self.assertEqual(report_dict["total_records"], 48)
         self.assertTrue(report_dict["is_valid"])
 
+    def test_whole_critical_model_column_is_not_accepted_as_real_data(self):
+        """关键模型输入整列缺失时，不能用默认晴天值伪装成有效观测。"""
+        response = create_mock_api_response(num_hours=24)
+        response["hourly"]["shortwave_radiation"] = [None] * 24
+        location = WeatherLocation(name="Test", lat=40.0, lon=-70.0)
+
+        df, report = self.client._parse_response(response, location)
+        df, report = self.client._validate_and_clean(df, report)
+
+        self.assertFalse(report.is_valid)
+        self.assertTrue(any("shortwave_radiation" in issue for issue in report.issues))
+
 
 class TestFetchWithMock(unittest.TestCase):
     """使用 Mock 测试 API 请求"""
@@ -414,6 +426,33 @@ class TestFetchWithMock(unittest.TestCase):
         self.assertGreater(len(df), 0)
         self.assertTrue((df["location"] == "Boston").all())
         self.assertEqual(report.location, "Boston")
+
+    def test_force_refresh_replaces_shared_cache(self):
+        """手动刷新后的下一次普通请求必须复用新数据，而不是旧缓存。"""
+        first = create_mock_api_response(num_hours=24)
+        second = create_mock_api_response(num_hours=24)
+        first["hourly"]["temperature_2m"] = [10.0] * 24
+        second["hourly"]["temperature_2m"] = [25.0] * 24
+        location = WeatherLocation(name="Boston", lat=42.36, lon=-71.06)
+        client = OpenMeteoClient(
+            locations=[location], rate_limit_interval=0, cache_ttl=300
+        )
+
+        with patch.object(client, "_fetch_single_location", side_effect=[first, second]) as fetch:
+            initial, _ = client.fetch_weather_data()
+            refreshed, _ = client.fetch_weather_data(force_refresh=True)
+            cached, _ = client.fetch_weather_data()
+
+        self.assertEqual(fetch.call_count, 2)
+        self.assertEqual(float(initial["temperature_2m"].iloc[0]), 10.0)
+        self.assertEqual(float(refreshed["temperature_2m"].iloc[0]), 25.0)
+        self.assertEqual(float(cached["temperature_2m"].iloc[0]), 25.0)
+        provenance = refreshed.attrs["forecast_provenance"]
+        self.assertEqual(cached.attrs["forecast_provenance"], provenance)
+        self.assertEqual(provenance["model_run"], None)
+        self.assertEqual(provenance["run_status"], "not_exposed_by_endpoint")
+        self.assertEqual(provenance["locations"][0]["location"], "Boston")
+        self.assertTrue(provenance["locations"][0]["received_at"].endswith("+00:00"))
 
 
 class TestRegionalAverage(unittest.TestCase):

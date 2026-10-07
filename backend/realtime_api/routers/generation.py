@@ -1,300 +1,226 @@
-"""
-智能电网负荷预测系统 - 光伏/风电发电路由
+"""TensorFlow 光伏发电预测路由。"""
 
-端点:
-  GET /api/solar-generation            - 光伏发电 ML 预测
-  GET /api/solar-generation/model-info - 光伏 ML 模型信息
-  GET /api/wind-generation             - 风电功率预测
-  GET /api/wind-generation/power-curve - 风机功率曲线
-
-从 app.py 中抽取。
-
-作者: 毕业设计项目
-"""
-
-import os
 import asyncio
 import logging
-from datetime import timedelta
+import math
 
 import pandas as pd
+
 from fastapi import APIRouter, HTTPException, Query
 
-from realtime_api.services.container import services, eastern_now, eastern_now_hour
+from realtime_api.services.container import (
+    eastern_now,
+    eastern_now_hour,
+    get_engine_config,
+    services,
+    tf_pv_backend_active,
+)
 
 logger = logging.getLogger(__name__)
+router = APIRouter(tags=["光伏"])
 
-router = APIRouter(tags=["光伏", "风电"])
+
+def _pv_backtest_metrics(pairs: list[dict]) -> dict | None:
+    """计算光伏回测指标；MAPE 排除接近日出/日落的微小分母。"""
+    if not pairs:
+        return None
+    errors = [
+        float(pair["historical_forecast"]) - float(pair["historical_actual"])
+        for pair in pairs
+    ]
+    daylight_pairs = [
+        pair for pair in pairs if abs(float(pair["historical_actual"])) > 500.0
+    ]
+    mape = None
+    if daylight_pairs:
+        mape = sum(
+            abs(
+                (float(pair["historical_forecast"]) - float(pair["historical_actual"]))
+                / float(pair["historical_actual"])
+            )
+            for pair in daylight_pairs
+        ) / len(daylight_pairs) * 100.0
+    return {
+        "count": len(pairs),
+        "daylight_count": len(daylight_pairs),
+        "mae_mw": round(sum(abs(error) for error in errors) / len(errors), 1),
+        "rmse_mw": round(math.sqrt(sum(error ** 2 for error in errors) / len(errors)), 1),
+        "mape": round(mape, 2) if mape is not None else None,
+    }
 
 
-# ============================================================================
-# GET /api/solar-generation — 光伏发电 ML 预测
-# ============================================================================
+def _run_pv_historical_backtest(windows: list[dict]) -> dict:
+    """逐小时重跑 pv_v2，并用每个 24 步输出的第 0 步做回溯验证。"""
+    pairs: list[dict] = []
+    for window in windows:
+        result = services.tf_pv_service.predict_features(
+            window["past"], window["future"]
+        )
+        target_time = pd.Timestamp(window["target_time"])
+        prediction_time = pd.Timestamp(result["timestamps"][0])
+        if prediction_time != target_time:
+            raise RuntimeError(
+                "TF 光伏回测时间对齐失败: "
+                f"预测={prediction_time}, ISO-NE={target_time}"
+            )
+        actual = float(window["actual_pv_mw"])
+        forecast = float(result["hourly_pv_mw"][0])
+        error = forecast - actual
+        pairs.append({
+            "target_time": target_time.isoformat(),
+            "historical_actual": round(actual, 2),
+            "historical_forecast": round(forecast, 2),
+            "error_mw": round(error, 2),
+            "absolute_error_mw": round(abs(error), 2),
+            "percentage_error": (
+                round(abs(error / actual) * 100.0, 2) if abs(actual) > 500.0 else None
+            ),
+        })
+    return {
+        "pairs": pairs,
+        "metrics": _pv_backtest_metrics(pairs),
+        "data_source": "ISO-NE estimated BTM PV（8个负荷区汇总）",
+        "note": (
+            "过去24小时逐小时重跑 TensorFlow pv_v2；每次仅取第1个预测步。"
+            "真实对照是 ISO-NE 官方估算 BTM PV。MAE/RMSE统计全部24小时，"
+            "MAPE仅统计真实估算值大于500 MW的稳定出力时段；气象为事后观测，属于回溯验证。"
+        ),
+    }
+
 
 @router.get(
     "/api/solar-generation",
-    summary="光伏发电 ML 预测",
-    description="""基于训练好的 4 模型集成 (LSTM + BiGRU + TCN + Transformer) 预测未来 24 小时光伏发电量。
-
-模型使用 Open-Meteo 实时气象数据 (GHI/DNI/DHI/温度/湿度/风速/云量等 21 维特征) 作为输入。
-
-如果 ML 模型未加载，自动回退到物理模型估算。""",
+    summary="TensorFlow 光伏发电预测",
+    description=(
+        "使用 TensorFlow/Keras PV v2（TCN-GRU-Attention）预测未来24小时 ISO-NE BTM 光伏出力。"
+        "模型输入为过去96小时×28特征与未来24小时×27个空间气象/时间特征。"
+    ),
 )
 async def get_solar_generation(
-    force_refresh: bool = Query(False, description="强制刷新，绕过缓存直接请求气象API"),
+    force_refresh: bool = Query(False, description="强制刷新气象数据"),
 ):
-    """获取光伏发电预测 (ML 模型优先)"""
+    """获取 TensorFlow PV v2 光伏预测；不进行旧模型或物理模型回退。"""
+    if str(get_engine_config().get("inference_mode", "live")).lower() == "live":
+        from realtime_api.services.live_forecast import request_live_snapshot, trim_snapshot
+        snapshot = trim_snapshot(await request_live_snapshot(force_refresh), pd.Timestamp(eastern_now_hour()))
+        result = snapshot["components"]["pv"]
+        historical = {"pairs": [], "metrics": None, "note": "没有可用的完整观测回测窗口"}
+        try:
+            historical = await asyncio.to_thread(_run_pv_historical_backtest, snapshot["pv_backtest"])
+        except Exception:
+            logger.warning("光伏回测不可用，不影响未来预测")
+        # Backtesting may cross an hour boundary too.
+        snapshot = trim_snapshot(snapshot, pd.Timestamp(eastern_now_hour()))
+        result = snapshot["components"]["pv"]
+        quality = snapshot["quality"]
+        quality["coverage_hours"] = len(result["timestamps"]) if result else 0
+        payload = dict(result) if result else {
+            "model_type": "tf_pv_v2", "timestamps": [], "hourly_pv_mw": [], "hourly_pv_kw": [],
+            "total_mwh": None, "peak_mw": None, "capacity_factor": None,
+            "model_info": {}, "ensemble_weights": {}, "device": "tensorflow", "feature_count": 28,
+            "inference_time_ms": 0, "data_source": "unavailable",
+        }
+        payload.update(status="success" if quality["components"]["pv"]["status"] == "fresh" else "degraded",
+            input_quality=quality, historical=historical, lookback_hours=96, horizon_hours=quality["coverage_hours"],
+            timestamp=result["generated_at"] if result else snapshot["generated_at"])
+        return payload
+    if not tf_pv_backend_active():
+        raise HTTPException(status_code=503, detail="TensorFlow 光伏模型未就绪")
+
     try:
-        weather_df, _ = await asyncio.to_thread(
-            services.openmeteo_client.fetch_weather_data,
-            None,  # locations
-            force_refresh,  # force_refresh
-        )
-
-        if weather_df.empty:
-            raise HTTPException(
-                status_code=502,
-                detail="无法获取气象数据用于光伏预测"
+        mode = str(get_engine_config().get("inference_mode", "live")).lower()
+        if mode == "live":
+            weather_df, _ = await asyncio.to_thread(
+                services.openmeteo_client.fetch_weather_data, None, force_refresh
             )
-
-        now = eastern_now_hour()
-
-        # 优先使用 ML 模型
-        if services.pv_inference_service and services.pv_inference_service.is_ready:
+            if weather_df is None or weather_df.empty:
+                raise RuntimeError("无法获取气象数据")
+            bundle = await asyncio.to_thread(
+                services.tf_realtime_feature_provider.build, weather_df, force_refresh
+            )
+            result = await asyncio.to_thread(
+                services.tf_pv_service.predict_features,
+                bundle["pv"]["past"],
+                bundle["pv"]["future"],
+            )
+            result["data_source"] = bundle.get(
+                "pv_data_source", "iso_ne+open_meteo"
+            )
             try:
-                pv_weather_rows = []
-                df_for_ml = weather_df.copy()
-                df_for_ml["timestamp"] = pd.to_datetime(df_for_ml["timestamp"])
-
-                for hour in range(24):
-                    pred_time = now + timedelta(hours=hour)
-                    row = {"timestamp": pred_time}
-                    window_start = pred_time - timedelta(minutes=30)
-                    window_end = pred_time + timedelta(minutes=30)
-                    mask = (df_for_ml["timestamp"] >= window_start) & (df_for_ml["timestamp"] <= window_end)
-                    if mask.any():
-                        for col in ["shortwave_radiation", "direct_radiation", "diffuse_radiation",
-                                    "temperature_2m", "dew_point_2m", "relative_humidity_2m",
-                                    "wind_speed_10m", "wind_direction_10m", "surface_pressure",
-                                    "cloud_cover", "cloud_cover_low", "cloud_cover_mid", "cloud_cover_high"]:
-                            if col in df_for_ml.columns:
-                                row[col] = float(df_for_ml.loc[mask, col].mean())
-                    pv_weather_rows.append(row)
-
-                pv_weather_df = pd.DataFrame(pv_weather_rows)
-
-                result = services.pv_inference_service.predict(
-                    pv_weather_df,
-                    start_time=now,
-                    latitude=42.36,
-                    longitude=-71.06,
+                historical = await asyncio.to_thread(
+                    _run_pv_historical_backtest, bundle.get("pv_backtest", [])
                 )
-
-                return {
-                    "status": "success",
-                    "model_type": "ml_ensemble",
-                    "hourly_pv_mw": result["hourly_pv_mw"],
-                    "hourly_pv_kw": result["hourly_pv_kw"],
-                    "timestamps": result["timestamps"],
-                    "total_mwh": result["total_mwh"],
-                    "peak_mw": result["peak_mw"],
-                    "capacity_factor": result["capacity_factor"],
-                    "model_info": result["model_info"],
-                    "ensemble_weights": result["ensemble_weights"],
-                    "inference_time_ms": result["inference_time_ms"],
-                    "device": result["device"],
-                    "feature_count": result["feature_count"],
-                    "lookback_hours": result["lookback"],
-                    "horizon_hours": result["horizon"],
-                    "timestamp": now.isoformat(),
+            except Exception as backtest_exc:
+                logger.warning("TensorFlow 光伏历史回测失败: %s", backtest_exc, exc_info=True)
+                historical = {
+                    "pairs": [],
+                    "metrics": None,
+                    "data_source": "ISO-NE estimated BTM PV（8个负荷区汇总）",
+                    "note": f"未来预测正常，但本次历史回测暂不可用: {backtest_exc}",
                 }
-            except Exception as e:
-                logger.error(f"光伏 ML 预测失败: {e}", exc_info=True)
-                logger.warning("回退到物理模型...")
-
-        # 物理模型回退
-        from realtime_api.pv_estimator import PVGenerationEstimator
-        pv_estimator = PVGenerationEstimator(
-            latitude=42.36,
-            longitude=-71.06,
-            installed_capacity_mw=500.0,
-        )
-        pv_result = pv_estimator.estimate_24h(weather_df, start_time=now)
+        else:
+            result = await asyncio.to_thread(services.tf_pv_service.predict)
+            historical = {
+                "pairs": [],
+                "metrics": None,
+                "data_source": "frozen_tail_demo",
+                "note": "演示模式不访问 ISO-NE 官方历史实况，因此不生成在线回测。",
+            }
 
         return {
             "status": "success",
-            "model_type": "physical",
-            "hourly_pv_mw": [round(v, 2) for v in pv_result.hourly_generation_mw],
-            "hourly_efficiency": [round(v, 4) for v in pv_result.hourly_efficiency],
-            "hourly_uncertainty_mw": [round(v, 2) for v in pv_result.hourly_uncertainty],
-            "timestamps": pv_result.timestamps,
-            "total_mwh": round(pv_result.total_daily_mwh, 2),
-            "peak_mw": round(float(pv_result.hourly_generation_mw.max()), 2),
-            "capacity_factor": round(pv_result.capacity_factor, 4),
-            "panel_type": pv_result.panel_type,
-            "timestamp": now.isoformat(),
+            "model_type": result.get("model_type", "tf_pv_v2"),
+            "hourly_pv_mw": result["hourly_pv_mw"],
+            "hourly_pv_kw": result["hourly_pv_kw"],
+            "timestamps": result["timestamps"],
+            "total_mwh": result["total_mwh"],
+            "peak_mw": result["peak_mw"],
+            "capacity_factor": result["capacity_factor"],
+            "capacity_mw": result.get("capacity_mw"),
+            "hourly_capacity_mw": result.get("hourly_capacity_mw", []),
+            "capacity_basis": result.get("capacity_basis"),
+            "model_info": result["model_info"],
+            "ensemble_weights": result["ensemble_weights"],
+            "inference_time_ms": result["inference_time_ms"],
+            "device": result["device"],
+            "feature_count": result["feature_count"],
+            "lookback_hours": result["lookback"],
+            "horizon_hours": result["horizon"],
+            "data_source": result.get("data_source", ""),
+            "origin": result.get("origin"),
+            "historical": historical,
+            "timestamp": eastern_now_hour().isoformat(),
         }
-
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"光伏预测失败: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"光伏预测失败: {str(e)}"
-        )
+    except Exception as exc:
+        logger.error("TensorFlow 光伏预测失败: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"TensorFlow 光伏预测失败: {exc}") from exc
 
-
-# ============================================================================
-# GET /api/solar-generation/model-info — 光伏 ML 模型信息
-# ============================================================================
 
 @router.get(
     "/api/solar-generation/model-info",
-    summary="光伏 ML 模型信息",
-    description="获取光伏预测模型的详细信息：模型结构、参数量、集成权重、训练指标",
+    summary="TensorFlow 光伏模型信息",
 )
 async def get_solar_model_info():
-    """获取光伏 ML 模型信息"""
-    if not services.pv_inference_service or not services.pv_inference_service.is_ready:
+    """获取当前 TensorFlow 光伏模型信息。"""
+    if not tf_pv_backend_active():
         return {
             "status": "unavailable",
-            "message": "光伏 ML 模型未加载",
-            "fallback": "physical_model",
+            "message": "TensorFlow 光伏模型未加载",
+            "timestamp": eastern_now().isoformat(),
         }
-
-    status = services.pv_inference_service.get_status()
-    model_info = services.pv_inference_service.get_model_info()
-
-    # 训练评估指标
-    training_metrics = {}
-    report_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-        "solar_data2", "pv_training", "outputs", "evaluation_report.json"
-    )
-    if os.path.exists(report_path):
-        try:
-            import json
-            with open(report_path, "r", encoding="utf-8") as f:
-                report = json.load(f)
-            training_metrics = {
-                "training_date": report.get("training_date"),
-                "device": report.get("device"),
-                "gpu_name": report.get("gpu_name"),
-                "torch_version": report.get("torch_version"),
-                "data_shapes": report.get("data_shapes"),
-                "results": report.get("results"),
-                "city_metrics": report.get("city_metrics"),
-            }
-        except Exception:
-            pass
-
     return {
         "status": "ready",
-        "model_info": model_info,
-        "service_status": status,
-        "training_metrics": training_metrics,
+        "engine": "tf_pv_v2",
+        "model_info": services.tf_pv_service.get_model_info(),
+        "service_status": services.tf_pv_service.get_status(),
+        "training_source": (
+            "MMXX/smart-grid/runs/pv_v2 "
+            "(2025-02..2026-09, independent-test MAE=236.2 MW)"
+        ),
         "timestamp": eastern_now().isoformat(),
     }
 
 
-# ============================================================================
-# GET /api/wind-generation — 风电功率预测
-# ============================================================================
-
-@router.get(
-    "/api/wind-generation",
-    summary="风电功率预测",
-    description="基于物理模型计算未来24小时风电功率，考虑风切变高度修正、空气密度修正、功率曲线和尾流损失",
-)
-async def get_wind_generation():
-    """获取风电功率预测"""
-    try:
-        weather_df, _ = await asyncio.to_thread(
-            services.openmeteo_client.fetch_weather_data
-        )
-
-        if weather_df.empty:
-            raise HTTPException(
-                status_code=502,
-                detail="无法获取气象数据用于风电估算"
-            )
-
-        # 确保必要的气象参数存在
-        if "wind_speed_10m" not in weather_df.columns:
-            weather_df["wind_speed_10m"] = 0.0
-        if "temperature_2m" not in weather_df.columns:
-            weather_df["temperature_2m"] = 15.0
-        if "surface_pressure" not in weather_df.columns:
-            weather_df["surface_pressure"] = 1013.25
-        if "wind_direction_10m" not in weather_df.columns:
-            weather_df["wind_direction_10m"] = 270.0
-
-        now = eastern_now_hour()
-        result = services.wind_estimator.estimate_24h(weather_df, start_time=now)
-
-        return {
-            "status": "success",
-            "hourly_generation_mw": [round(v, 2) for v in result.hourly_generation_mw],
-            "hourly_wind_speed_hub": [round(v, 2) for v in result.hourly_wind_speed_hub],
-            "hourly_efficiency": [round(v, 4) for v in result.hourly_efficiency],
-            "hourly_uncertainty_mw": [round(v, 2) for v in result.hourly_uncertainty],
-            "hourly_air_density": [round(v, 4) for v in result.hourly_air_density],
-            "timestamps": result.timestamps,
-            "total_daily_mwh": round(result.total_daily_mwh, 2),
-            "capacity_factor": round(result.capacity_factor, 4),
-            "turbine_type": result.turbine_type,
-            "installed_capacity_mw": result.installed_capacity_mw,
-            "timestamp": now.isoformat(),
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"风电预测失败: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"风电预测失败: {str(e)}"
-        )
-
-
-# ============================================================================
-# GET /api/wind-generation/power-curve — 风机功率曲线
-# ============================================================================
-
-@router.get(
-    "/api/wind-generation/power-curve",
-    summary="风机功率曲线",
-    description="获取风机功率特性曲线数据，包括功率曲线模型和理论功率",
-)
-async def get_wind_power_curve():
-    """获取风机功率曲线"""
-    try:
-        curve_df = services.wind_estimator.power_curve(speed_range=(0, 30), steps=60)
-
-        return {
-            "status": "success",
-            "turbine_type": services.wind_estimator.turbine.name,
-            "rated_power_kw": services.wind_estimator.turbine.rated_power_kw,
-            "rotor_diameter_m": services.wind_estimator.turbine.rotor_diameter_m,
-            "hub_height_m": services.wind_estimator.turbine.hub_height_m,
-            "cut_in_speed": services.wind_estimator.turbine.cut_in_speed,
-            "rated_speed": services.wind_estimator.turbine.rated_speed,
-            "cut_out_speed": services.wind_estimator.turbine.cut_out_speed,
-            "power_coefficient": services.wind_estimator.turbine.power_coefficient,
-            "mechanical_efficiency": services.wind_estimator.turbine.mechanical_efficiency,
-            "n_turbines": services.wind_estimator.n_turbines,
-            "installed_capacity_mw": services.wind_estimator.installed_capacity,
-            "wind_shear_alpha": services.wind_estimator.alpha,
-            "wake_loss": services.wind_estimator.wake_loss,
-            "availability": services.wind_estimator.availability,
-            "curve": curve_df.to_dict(orient="records"),
-            "timestamp": eastern_now().isoformat(),
-        }
-
-    except Exception as e:
-        logger.error(f"获取功率曲线失败: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"获取功率曲线失败: {str(e)}"
-        )
+__all__ = ["router"]

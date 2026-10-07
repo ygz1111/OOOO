@@ -56,6 +56,12 @@ async def metrics_middleware(request: Request, call_next):
     start = time.perf_counter()
     try:
         response = await call_next(request)
+    except Exception:
+        # 2026-08 修复：call_next 抛异常（如 30s 请求超时被取消）时 response 未赋值，
+        # 旧代码在 finally 后访问 response.status_code 会触发 UnboundLocalError，
+        # 把 504 变成 500。这里记录 500 计数后重新抛出，交由全局异常处理器处理。
+        REQUESTS.labels(method=method, path=route_path, status="500").inc()
+        raise
     finally:
         REQUEST_DURATION.labels(method=method, path=route_path).observe(
             time.perf_counter() - start

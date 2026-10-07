@@ -20,14 +20,3 @@ scikit-learn>=1.3.0
 # PVLib 工业级光伏仿真
 # ============================================================================
 pvlib>=0.10.0
-
-# ============================================================================
-# 深度学习 (PyTorch)
-# ============================================================================
-# CPU 版本 (默认):
-#   pip install torch --index-url https://download.pytorch.org/whl/cpu
-# GPU 版本 (CUDA 12.1):
-#   pip install torch --index-url https://download.pytorch.org/whl/cu121
-# GPU 版本 (CUDA 11.8):
-#   pip install torch --index-url https://download.pytorch.org/whl/cu118
-torch>=2.0.0

@@ -1,66 +1,18 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
-import { CssBaseline, ThemeProvider, createTheme } from '@mui/material'
 import App from './App'
+import { ThemeProvider, initializeWorkspaceTheme } from './contexts/ThemeContext'
 import './index.css'
 
-const theme = createTheme({
-  palette: {
-    mode: 'dark',
-    primary: {
-      main: '#3B82F6',
-      light: '#60a5fa',
-      dark: '#2563eb',
-    },
-    secondary: {
-      main: '#10B981',
-      light: '#34d399',
-      dark: '#059669',
-    },
-    background: {
-      default: '#0B0F19',
-      paper: '#111827',
-    },
-    text: {
-      primary: '#f8fafc',
-      secondary: '#cbd5e1',
-    },
-  },
-  typography: {
-    fontFamily: 'Fira Sans, system-ui, -apple-system, sans-serif',
-    h1: { fontSize: '2rem', fontWeight: 600 },
-    h2: { fontSize: '1.5rem', fontWeight: 600 },
-    h3: { fontSize: '1.25rem', fontWeight: 600 },
-    body1: { fontSize: '0.875rem' },
-    body2: { fontSize: '0.75rem' },
-  },
-  components: {
-    MuiCard: {
-      styleOverrides: {
-        root: {
-          backgroundColor: '#111827',
-          borderRadius: 12,
-          border: '1px solid #1F2937',
-        },
-      },
-    },
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          borderRadius: 8,
-          textTransform: 'none',
-          fontWeight: 500,
-        },
-      },
-    },
-  },
-})
-
+// 注意: 全站 UI 基于 Tailwind 自研设计系统（index.css），
+// 已移除 MUI/Emotion 依赖（2026-08 瘦身）：
+// 全局样式重置由 Tailwind Preflight (@tailwind base) 承担，
+// 工作台背景、文字和控件样式由 index.css 与各组件承担。
+initializeWorkspaceTheme()
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
+    <ThemeProvider>
       <BrowserRouter>
         <App />
       </BrowserRouter>

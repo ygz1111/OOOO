@@ -13,7 +13,6 @@
 作者: 毕业设计项目
 """
 
-from realtime_api.utils.background import fire_and_forget
 import time
 import asyncio
 import logging
@@ -26,7 +25,12 @@ from realtime_api.schemas import (
 )
 from realtime_api.crud import SystemMetricsCRUD
 from realtime_api.health_check import get_health_check_service
-from realtime_api.services.container import services, eastern_now
+from realtime_api.services.container import (
+    active_load_service,
+    active_model_runtime_stats,
+    services,
+    eastern_now,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,71 +49,34 @@ router = APIRouter(tags=["系统"])
 )
 async def get_system_status():
     """系统状态监控"""
-    stats = services.inference_service.get_performance_stats()
+    stats = active_model_runtime_stats()
 
-    # 内存和 CPU 使用
+    # 状态读取只采集响应需要的内存信息。CPU 阻塞采样和持久化由后台任务负责。
     try:
         import psutil
-        process = psutil.Process()
-        memory_mb = process.memory_info().rss / 1024 / 1024
-        cpu_percent = process.cpu_percent(interval=0.1)
-        sys_cpu_percent = psutil.cpu_percent(interval=0.1)
-        sys_memory = psutil.virtual_memory()
-        memory_percent = sys_memory.percent
-        memory_used_gb = sys_memory.used / 1024 / 1024 / 1024
-        memory_available_gb = sys_memory.available / 1024 / 1024 / 1024
-        process_count = len(psutil.pids())
-        disk_usage = psutil.disk_usage('/').percent
+        memory_mb = (await asyncio.to_thread(psutil.Process().memory_info)).rss / 1024 / 1024
     except ImportError:
         memory_mb = None
-        cpu_percent = None
-        sys_cpu_percent = None
-        memory_percent = None
-        memory_used_gb = None
-        memory_available_gb = None
-        process_count = None
-        disk_usage = None
 
     uptime = time.time() - services.start_time
 
     # 判断健康状态
-    if stats['models_loaded'] == 4:
+    if stats['models_loaded'] == stats['models_total'] and stats['models_total'] > 0:
         health_status = "healthy"
     elif stats['models_loaded'] > 0:
         health_status = "degraded"
     else:
         health_status = "error"
 
-    # 异步写入系统监控指标
-    async def _persist_system_metrics():
-        try:
-            await SystemMetricsCRUD.insert_metrics(
-                cpu_percent=sys_cpu_percent,
-                cpu_count=process_count,
-                memory_percent=memory_percent,
-                memory_used_gb=round(memory_used_gb, 3) if memory_used_gb else None,
-                memory_available_gb=round(memory_available_gb, 3) if memory_available_gb else None,
-                gpu_available=False,
-                gpu_memory_used_mb=None,
-                gpu_memory_total_mb=None,
-                gpu_utilization_percent=None,
-                gpu_temperature_c=None,
-                disk_usage_percent=disk_usage,
-                process_count=process_count,
-                active_connections=None,
-            )
-        except Exception as e:
-            logger.warning(f"系统指标入库失败（非阻塞）: {e}")
-
-    fire_and_forget(_persist_system_metrics, "system_metrics")
-
     return SystemStatusResponse(
         status=health_status,
         models_loaded=stats['models_loaded'],
+        models_total=stats['models_total'],
         device=stats['device'],
         total_inferences=stats['total_inferences'],
         average_inference_time_ms=stats['average_time_ms'],
         ensemble_weights=stats['ensemble_weights'],
+        model_details=stats.get('model_details', []),
         uptime_seconds=round(uptime, 1),
         memory_usage_mb=round(memory_mb, 1) if memory_mb else None,
         timestamp=eastern_now().isoformat(),
@@ -166,7 +133,7 @@ async def health_check():
     health_service = get_health_check_service()
     health_result = await asyncio.wait_for(
         health_service.comprehensive_health_check(
-            inference_service=services.inference_service
+            inference_service=active_load_service()
         ),
         timeout=10.0,
     )
@@ -205,7 +172,7 @@ async def readiness_check():
         health_service = get_health_check_service()
 
         db_health = await health_service.check_database_health()
-        model_health = health_service.check_model_service_health(services.inference_service)
+        model_health = health_service.check_model_service_health(active_load_service())
 
         if db_health.status == "unhealthy" or model_health.status == "unhealthy":
             return {

@@ -40,13 +40,6 @@ import numpy as np
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
-# 尝试导入可选依赖
-try:
-    import torch
-    HAS_TORCH = True
-except ImportError:
-    HAS_TORCH = False
-
 # 日志配置
 logging.basicConfig(
     level=logging.INFO,
@@ -553,7 +546,11 @@ class MonitoringService:
             process_count = len(psutil.pids())
             
             # GPU指标
-            gpu_available = HAS_TORCH and torch.cuda.is_available()
+            try:
+                import tensorflow as tf
+                gpu_available = bool(tf.config.list_physical_devices("GPU"))
+            except Exception:
+                gpu_available = False
             gpu_memory_used_mb = 0.0
             gpu_memory_total_mb = 0.0
             gpu_utilization_percent = 0.0
@@ -561,14 +558,14 @@ class MonitoringService:
             
             if gpu_available:
                 try:
-                    gpu_memory_used_mb = torch.cuda.memory_allocated(0) / 1024**2
-                    gpu_memory_total_mb = torch.cuda.get_device_properties(0).total_memory / 1024**2
-                    
-                    # 尝试获取GPU利用率 (需要nvidia-ml-py库)
+                    # GPU 显存与利用率由 NVML 提供，模型框架统一为 TensorFlow。
                     try:
                         import pynvml
                         pynvml.nvmlInit()
                         handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+                        memory_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                        gpu_memory_used_mb = memory_info.used / 1024**2
+                        gpu_memory_total_mb = memory_info.total / 1024**2
                         util = pynvml.nvmlDeviceGetUtilizationRates(handle)
                         gpu_utilization_percent = util.gpu
                         temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)

@@ -1,0 +1,114 @@
+{
+ "version": 1,
+ "model": "pv_v1",
+ "note": "GRU128 归一化 ISO-NE BTM 光伏 pv_n_ISONE, 输出 p.u. 0..1",
+ "lookback": 96,
+ "horizon": 24,
+ "past_cols": [
+  "ghi_mean",
+  "cloud_mean",
+  "temp_mean",
+  "coszen",
+  "sun_up",
+  "pv_n_ISONE",
+  "db_ca",
+  "dp_ca",
+  "hour_sin",
+  "hour_cos",
+  "dow_sin",
+  "dow_cos"
+ ],
+ "fut_cols": [
+  "ghi_mean",
+  "cloud_mean",
+  "temp_mean",
+  "coszen",
+  "sun_up",
+  "hour_sin",
+  "hour_cos"
+ ],
+ "scaler": {
+  "sp": {
+   "cols": [
+    "ghi_mean",
+    "cloud_mean",
+    "temp_mean",
+    "coszen",
+    "sun_up",
+    "pv_n_ISONE",
+    "db_ca",
+    "dp_ca",
+    "hour_sin",
+    "hour_cos",
+    "dow_sin",
+    "dow_cos"
+   ],
+   "mean": [
+    162.848223741992,
+    59.416863634015,
+    10.420726777227,
+    0.237527382703,
+    0.496913101881,
+    0.144605561592,
+    51.904381183643,
+    40.257833690682,
+    -0.0,
+    -0.0,
+    0.00030220952,
+    6.8977351e-05
+   ],
+   "scale": [
+    233.867315783824,
+    34.919282820299,
+    10.220581787755,
+    0.30028147195,
+    0.499990470969,
+    0.223227025031,
+    18.013764557768,
+    19.06628638823,
+    0.707106781187,
+    0.707106781187,
+    0.707007968041,
+    0.70720551259
+   ],
+   "n_features_in": 12
+  },
+  "sf": {
+   "cols": [
+    "ghi_mean",
+    "cloud_mean",
+    "temp_mean",
+    "coszen",
+    "sun_up",
+    "hour_sin",
+    "hour_cos"
+   ],
+   "mean": [
+    162.848223741992,
+    59.416863634015,
+    10.420726777227,
+    0.237527382703,
+    0.496913101881,
+    -0.0,
+    -0.0
+   ],
+   "scale": [
+    233.867315783824,
+    34.919282820299,
+    10.220581787755,
+    0.30028147195,
+    0.499990470969,
+    0.707106781187,
+    0.707106781187
+   ],
+   "n_features_in": 7
+  }
+ },
+ "y": {
+  "mean": 0.14460556159154817,
+  "std": 0.22322846663279672
+ },
+ "capacity_mw": 5145.798319327731,
+ "capacity_strategy": "asset fallback; production uses ISO-NE 2026 CELT date-aligned capacity",
+ "decode_note": "p_u=clip(out*std+mean,0,1); production MW uses timestamp-aligned ISO-NE CELT BTM PV capacity"
+}

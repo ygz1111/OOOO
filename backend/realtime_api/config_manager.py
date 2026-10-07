@@ -14,6 +14,15 @@ import logging
 from typing import Any, Dict, List, Optional
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+
+# 配置模块也可能被维护脚本、测试工具或某个子模块直接导入，不能只依赖
+# FastAPI 入口负责加载环境变量。这里使用确定的项目根目录，不依赖当前工作
+# 目录；默认 override=False，仍尊重由部署环境显式注入的变量。
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(_PROJECT_ROOT / ".env", override=False)
+
 
 class ConfigManager:
     """配置管理器 - 单例模式"""
@@ -102,16 +111,32 @@ class ConfigManager:
         if api_debug := os.getenv('API_DEBUG'):
             config['api']['debug'] = api_debug.lower() == 'true'
         
-        # 数据库配置覆盖
-        if db_host := os.getenv('DATABASE_HOST'):
-            config['database']['mysql']['host'] = db_host
-        
-        if db_name := os.getenv('DATABASE_NAME'):
-            config['database']['mysql']['database'] = db_name
+        # 数据库配置覆盖。统一使用 database.py、.env.example 和 Compose 中的
+        # MYSQL_* 命名；同时保留旧 DATABASE_* 变量作为兼容别名。
+        mysql_config = config.setdefault('database', {}).setdefault('mysql', {})
+        database_overrides = {
+            'host': os.getenv('MYSQL_HOST') or os.getenv('DATABASE_HOST'),
+            'port': os.getenv('MYSQL_PORT') or os.getenv('DATABASE_PORT'),
+            'database': os.getenv('MYSQL_DATABASE') or os.getenv('DATABASE_NAME'),
+            'user': os.getenv('MYSQL_USER') or os.getenv('DATABASE_USER'),
+            'password': os.getenv('MYSQL_PASSWORD') or os.getenv('DATABASE_PASSWORD'),
+            'pool_size': os.getenv('MYSQL_POOL_SIZE') or os.getenv('DATABASE_POOL_SIZE'),
+        }
+        for key, value in database_overrides.items():
+            if value is not None and value != '':
+                mysql_config[key] = int(value) if key in {'port', 'pool_size'} else value
         
         # Redis配置覆盖
         if redis_host := os.getenv('REDIS_HOST'):
             config['cache']['redis']['host'] = redis_host
+        if redis_port := os.getenv('REDIS_PORT'):
+            config['cache']['redis']['port'] = int(redis_port)
+        if redis_db := os.getenv('REDIS_DB'):
+            config['cache']['redis']['db'] = int(redis_db)
+        if redis_password := os.getenv('REDIS_PASSWORD'):
+            config['cache']['redis']['password'] = redis_password
+        if redis_protocol := os.getenv('REDIS_PROTOCOL'):
+            config['cache']['redis']['protocol'] = int(redis_protocol)
         
         # 认证配置覆盖 (注意: 生产环境必须使用强密钥)
         if jwt_secret := os.getenv('AUTH_JWT_SECRET_KEY'):
@@ -254,7 +279,12 @@ def get_database_url() -> str:
 
 def get_jwt_secret() -> str:
     """获取JWT密钥（优先 AUTH_JWT_SECRET_KEY 环境变量）"""
-    secret = config_manager.get('auth.jwt.secret_key', None)
+    # 动态读取环境变量，避免配置单例在 .env 加载前被其他模块间接导入时缓存
+    # 旧值。正常启动时 app.py 会先加载 .env；动态读取同时让脚本、测试和
+    # WSGI/ASGI 工具以不同导入顺序启动时仍使用同一把密钥。
+    secret = os.getenv('AUTH_JWT_SECRET_KEY') or config_manager.get(
+        'auth.jwt.secret_key', None
+    )
     if not secret or secret in ('your-secret-key', 'default-secret-key',
                                 'your-secret-key-change-in-production'):
         logging.warning(

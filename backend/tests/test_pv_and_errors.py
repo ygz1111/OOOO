@@ -1,43 +1,12 @@
 # -*- coding: utf-8 -*-
-"""光伏物理估算模型与错误响应格式测试。"""
+"""错误响应格式测试。"""
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from realtime_api.pv_estimator import PVGenerationEstimator
 from realtime_api.error_handling import create_error_response, ErrorCode
-
-
-class TestPVEstimator:
-    def test_estimate_zero_radiation(self):
-        """无辐射 → 光伏出力为 0"""
-        est = PVGenerationEstimator(installed_capacity_mw=100.0)
-        out = est.estimate(radiation=0.0, temperature=25.0)
-        assert out == 0.0
-
-    def test_estimate_positive_bounded(self):
-        """正辐射下的出力应在 [0, 装机容量] 范围内"""
-        est = PVGenerationEstimator(installed_capacity_mw=100.0)
-        out = est.estimate(radiation=800.0, temperature=25.0)
-        assert 0.0 <= out <= 100.0
-
-    def test_estimate_24h_shape(self):
-        import pandas as pd
-        est = PVGenerationEstimator(installed_capacity_mw=50.0)
-        # 构造全天无辐射的气象 DataFrame
-        df = pd.DataFrame({
-            "timestamp": pd.date_range("2026-07-31", periods=24, freq="h"),
-            "shortwave_radiation": [0.0] * 24,
-            "cloud_cover": [100] * 24,
-            "temperature_2m": [25.0] * 24,
-        })
-        res = est.estimate_24h(df)
-        assert hasattr(res, "hourly_generation_mw")
-        # 夜间无出力
-        pv = res.hourly_generation_mw
-        assert len(pv) == 24
-        assert all(v == 0.0 for v in pv)
+from realtime_api.routers.generation import _pv_backtest_metrics
 
 
 class TestErrorResponse:
@@ -51,3 +20,17 @@ class TestErrorResponse:
 
     def test_error_code_enum_values(self):
         assert ErrorCode.VALIDATION_ERROR.value == 40001
+
+
+def test_pv_backtest_mape_excludes_zero_night_hours():
+    metrics = _pv_backtest_metrics([
+        {"historical_actual": 0.0, "historical_forecast": 100.0},
+        # 当前口径只在真实 BTM 估算值 > 500 MW 的稳定出力时段计算 MAPE。
+        {"historical_actual": 600.0, "historical_forecast": 660.0},
+    ])
+
+    assert metrics["count"] == 2
+    assert metrics["daylight_count"] == 1
+    assert metrics["mae_mw"] == 80.0
+    assert metrics["rmse_mw"] == 82.5
+    assert metrics["mape"] == 10.0

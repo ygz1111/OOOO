@@ -1,0 +1,61 @@
+{
+  "run_tag": "tf_split_v1",
+  "data_range": [
+    "2017-01-01 01:00:00",
+    "2026-08-01 00:00:00"
+  ],
+  "split": {
+    "train_end": "2026-04-30 23:00:00",
+    "val": [
+      "2026-05-01 00:00:00",
+      "2026-06-30 23:00:00"
+    ],
+    "test": [
+      "2026-07-01 00:00:00",
+      "2026-08-01 00:00:00"
+    ]
+  },
+  "gpu": [
+    "/physical_device:GPU:0"
+  ],
+  "load": {
+    "task": "load",
+    "epochs": 40,
+    "seconds": 805.9,
+    "windows": {
+      "train": 81407,
+      "val": 1441,
+      "test": 722
+    },
+    "test": {
+      "MAE_MW": 305.4,
+      "RMSE_MW": 476.14,
+      "MAPE_pct": 1.922,
+      "bias_MW": 91.49,
+      "R2": 0.97739,
+      "peak_MAE_MW": 567.18
+    },
+    "model_path": "models/tf_split_v1/load_best.weights.h5",
+    "scaler_path": "models/tf_split_v1/load_scalers.json"
+  },
+  "price": {
+    "task": "price",
+    "epochs": 21,
+    "seconds": 428.5,
+    "windows": {
+      "train": 81407,
+      "val": 1441,
+      "test": 722
+    },
+    "test": {
+      "P50_MAE_USD_MWh": 13.266,
+      "P50_RMSE_USD_MWh": 26.494,
+      "P50_bias_USD_MWh": -3.713,
+      "P50_MAPE_pct_abs_actual_ge_1": 22.072,
+      "P10_P90_coverage": 0.6693,
+      "negative_actual_count": 0
+    },
+    "model_path": "models/tf_split_v1/price_best.weights.h5",
+    "scaler_path": "models/tf_split_v1/price_scalers.json"
+  }
+}

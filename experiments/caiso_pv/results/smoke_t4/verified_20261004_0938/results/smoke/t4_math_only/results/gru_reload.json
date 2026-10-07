@@ -1,0 +1,14 @@
+{
+  "status": "PASS",
+  "new_process": true,
+  "model_path": "/content/caiso_pv_smoke_20261004_0938/results/smoke/t4_math_only/models/gru.keras",
+  "shape": [
+    2,
+    24,
+    1
+  ],
+  "max_absolute_difference_scaled": 0.0,
+  "rtol": 0.0001,
+  "atol": 1e-05,
+  "tensorflow": "2.20.0"
+}

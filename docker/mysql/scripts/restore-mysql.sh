@@ -26,10 +26,11 @@ log_warn() {
 }
 
 # 配置
-export MYSQL_HOST="localhost"
-export MYSQL_PORT="3306"
-export MYSQL_USER="restore_user"
-export MYSQL_PASSWORD="restore_password"
+export MYSQL_HOST="${MYSQL_HOST:-localhost}"
+export MYSQL_PORT="${MYSQL_PORT:-3306}"
+export MYSQL_USER="${MYSQL_USER:-restore_user}"
+: "${MYSQL_PASSWORD:?请通过环境变量配置 MYSQL_PASSWORD}"
+export MYSQL_PASSWORD
 export BACKUP_DIR="/var/lib/mysql-backup"
 
 # 交互模式

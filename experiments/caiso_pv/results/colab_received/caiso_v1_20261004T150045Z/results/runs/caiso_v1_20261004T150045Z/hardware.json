@@ -1,0 +1,19 @@
+{
+  "tensorflow": "2.20.0",
+  "gpus": [
+    "/physical_device:GPU:0"
+  ],
+  "keras": "3.13.2",
+  "python": "3.13.15",
+  "gpu_details": [
+    {
+      "compute_capability": [
+        7,
+        5
+      ],
+      "device_name": "Tesla T4"
+    }
+  ],
+  "seed": 42,
+  "cuda_build": true
+}

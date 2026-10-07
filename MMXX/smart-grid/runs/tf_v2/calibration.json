@@ -1,0 +1,20 @@
+{
+ "a10": 1.0,
+ "a50": 1.0,
+ "a90": 1.0,
+ "note": "bound_cal = p50 + (bound_raw - p50) * a, a in [0,1]",
+ "val_calibrated": {
+  "partition": "val",
+  "p10_below": 0.1007,
+  "p50_below": 0.4437,
+  "p90_below": 0.8983,
+  "p10p90_coverage": 0.7976
+ },
+ "test_calibrated": {
+  "partition": "test",
+  "p10_below": 0.1249,
+  "p50_below": 0.4628,
+  "p90_below": 0.8683,
+  "p10p90_coverage": 0.7433
+ }
+}

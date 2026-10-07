@@ -12,14 +12,12 @@ import asyncio
 import time
 import logging
 import psutil
-import torch
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, asdict
 
 from realtime_api.database import db_manager
 from realtime_api.config_manager import get_config
-from realtime_api.prediction_service import ModelInferenceService
 
 
 @dataclass
@@ -88,21 +86,31 @@ class HealthCheckService:
             import redis
             
             redis_config = self.config.get_cache_config()
-            redis_client = redis.Redis(
-                host=redis_config.get('host', 'localhost'),
-                port=redis_config.get('port', 6379),
-                db=redis_config.get('db', 0),
-                socket_connect_timeout=2,
-                socket_timeout=2
+            # redis-py 是同步客户端，直接在 async 函数里调用会阻塞整个事件循环。
+            # 本地开发环境中 Docker 主机名 `redis` 不可解析时尤其明显，因此把
+            # 探测放入工作线程，并在协程层再加一道硬超时。
+            def probe_redis():
+                redis_client = redis.Redis(
+                    host=redis_config.get('host', 'localhost'),
+                    port=redis_config.get('port', 6379),
+                    db=redis_config.get('db', 0),
+                    password=redis_config.get('password') or None,
+                    # Windows 本机常见的 Redis 3.x 不支持 RESP3 的 HELLO 命令。
+                    # 固定使用 RESP2，同时仍兼容 Docker 中的 Redis 7。
+                    protocol=int(redis_config.get('protocol', 2)),
+                    socket_connect_timeout=2,
+                    socket_timeout=2
+                )
+                ping_result = redis_client.ping()
+                info = redis_client.info() if ping_result else {}
+                return ping_result, info
+
+            ping_result, info = await asyncio.wait_for(
+                asyncio.to_thread(probe_redis), timeout=3.5
             )
-            
-            # 测试Redis连接
-            ping_result = redis_client.ping()
             response_time = (time.perf_counter() - start_time) * 1000
             
             if ping_result:
-                # 获取Redis信息
-                info = redis_client.info()
                 return ComponentHealth(
                     name="redis",
                     status="healthy",
@@ -118,24 +126,34 @@ class HealthCheckService:
             else:
                 return ComponentHealth(
                     name="redis",
-                    status="unhealthy",
+                    status="degraded",
                     message="Redis ping失败",
                     response_time_ms=round(response_time, 2),
                     last_check=datetime.now().isoformat()
                 )
                 
+        except asyncio.TimeoutError:
+            response_time = (time.perf_counter() - start_time) * 1000
+            return ComponentHealth(
+                name="redis",
+                status="degraded",
+                message="Redis检查超时，系统将不使用缓存继续运行",
+                response_time_ms=round(response_time, 2),
+                last_check=datetime.now().isoformat(),
+                details={'error': 'redis_health_check_timeout'}
+            )
         except Exception as e:
             response_time = (time.perf_counter() - start_time) * 1000
             return ComponentHealth(
                 name="redis",
-                status="unhealthy",
-                message=f"Redis检查失败: {str(e)}",
+                status="degraded",
+                message=f"Redis不可用，系统将不使用缓存继续运行: {str(e)}",
                 response_time_ms=round(response_time, 2),
                 last_check=datetime.now().isoformat(),
                 details={'error': str(e)}
             )
     
-    def check_model_service_health(self, inference_service: Optional[ModelInferenceService]) -> ComponentHealth:
+    def check_model_service_health(self, inference_service: Optional[Any]) -> ComponentHealth:
         """检查模型服务健康状态"""
         start_time = time.perf_counter()
         
@@ -148,7 +166,9 @@ class HealthCheckService:
                     last_check=datetime.now().isoformat()
                 )
             
-            if not inference_service.is_ready():
+            ready_attr = getattr(inference_service, "is_ready", False)
+            is_ready = ready_attr() if callable(ready_attr) else bool(ready_attr)
+            if not is_ready:
                 return ComponentHealth(
                     name="model_service",
                     status="unhealthy",
@@ -156,8 +176,23 @@ class HealthCheckService:
                     last_check=datetime.now().isoformat()
                 )
             
-            # 获取模型信息
-            model_info = inference_service.get_model_info()
+            # 统一读取生产运行时统计，确保负荷、电价、光伏三个独立模型都计入。
+            # 动态导入用于避免模块初始化阶段的循环依赖。
+            try:
+                from realtime_api.services.container import active_model_runtime_stats
+                runtime_stats = active_model_runtime_stats()
+                runtime_details = runtime_stats.get('model_details', [])
+            except Exception:
+                runtime_stats = {}
+                runtime_details = []
+
+            if runtime_details:
+                model_info = {
+                    item.get('id', f'model_{index + 1}'): item
+                    for index, item in enumerate(runtime_details)
+                }
+            else:
+                model_info = inference_service.get_model_info()
             response_time = (time.perf_counter() - start_time) * 1000
             
             models_loaded = sum(1 for info in model_info.values() if info.get('loaded', False))
@@ -173,7 +208,9 @@ class HealthCheckService:
                     details={
                         'models_loaded': models_loaded,
                         'total_models': total_models,
-                        'device': str(inference_service.device),
+                        'device': runtime_stats.get(
+                            'device', str(getattr(inference_service, 'device', 'tensorflow'))
+                        ),
                         'model_details': model_info
                     }
                 )
@@ -245,7 +282,7 @@ class HealthCheckService:
                     'memory_used_gb': memory_used_gb,
                     'memory_total_gb': memory_total_gb,
                     'disk_percent': disk_percent,
-                    'gpu_available': torch.cuda.is_available() if hasattr(torch, 'cuda') else False
+                    'gpu_available': self._tensorflow_gpus_count() > 0
                 }
             )
             
@@ -261,40 +298,43 @@ class HealthCheckService:
             )
     
     def check_gpu_health(self) -> ComponentHealth:
-        """检查GPU健康状态"""
+        """检查 TensorFlow GPU 健康状态。"""
         start_time = time.perf_counter()
         
         try:
-            if not hasattr(torch, 'cuda') or not torch.cuda.is_available():
+            try:
+                import tensorflow as tf
+                gpus = tf.config.list_physical_devices('GPU')
+            except Exception as exc:
                 return ComponentHealth(
                     name="gpu",
                     status="degraded",
-                    message="GPU不可用，使用CPU模式",
+                    message="TensorFlow GPU 状态不可用，使用CPU模式",
                     last_check=datetime.now().isoformat(),
-                    details={'available': False, 'reason': 'cuda_not_available'}
+                    details={'available': False, 'reason': str(exc)}
+                )
+
+            if not gpus:
+                return ComponentHealth(
+                    name="gpu",
+                    # GPU 只用于 Colab 训练；本机生产服务允许 TensorFlow CPU 推理。
+                    # 未配置可选加速器不应把整个健康端点误报为降级。
+                    status="healthy",
+                    message="未配置本机GPU，TensorFlow 使用CPU推理",
+                    last_check=datetime.now().isoformat(),
+                    details={
+                        'available': False,
+                        'required': False,
+                        'reason': 'cuda_not_available',
+                    }
                 )
             
             # GPU可用，检查详细信息
-            gpu_count = torch.cuda.device_count()
-            if gpu_count == 0:
-                return ComponentHealth(
-                    name="gpu",
-                    status="degraded", 
-                    message="无可用GPU设备",
-                    last_check=datetime.now().isoformat(),
-                    details={'available': False, 'reason': 'no_gpu_devices'}
-                )
-            
-            # 获取GPU信息
-            gpu_info = []
-            for i in range(gpu_count):
-                props = torch.cuda.get_device_properties(i)
-                gpu_info.append({
-                    'device_id': i,
-                    'name': props.name,
-                    'total_memory_gb': round(props.total_memory / (1024**3), 2),
-                    'compute_capability': f"{props.major}.{props.minor}"
-                })
+            gpu_count = len(gpus)
+            gpu_info = [
+                {'device_id': i, 'name': gpu.name, 'device_type': gpu.device_type}
+                for i, gpu in enumerate(gpus)
+            ]
             
             response_time = (time.perf_counter() - start_time) * 1000
             
@@ -322,7 +362,15 @@ class HealthCheckService:
                 details={'error': str(e)}
             )
     
-    async def comprehensive_health_check(self, inference_service: Optional[ModelInferenceService] = None) -> Dict[str, Any]:
+    @staticmethod
+    def _tensorflow_gpus_count() -> int:
+        try:
+            import tensorflow as tf
+            return len(tf.config.list_physical_devices('GPU'))
+        except Exception:
+            return 0
+
+    async def comprehensive_health_check(self, inference_service: Optional[Any] = None) -> Dict[str, Any]:
         """执行综合健康检查"""
         start_time = time.perf_counter()
         

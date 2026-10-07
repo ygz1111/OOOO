@@ -6,10 +6,11 @@ API 集成测试（HTTP 层端到端）
   - 认证：未认证 401 / 登录 200 / 带 token 访问受保护端点 200
   - 白名单：/api/health、/metrics 公开
   - 预测：POST /api/prediction/load 返回 24 小时真实预测
-  - 光伏：GET /api/solar-generation 返回 ML 集成预测
+  - 光伏：GET /api/solar-generation 返回 TensorFlow pv_v2 预测
 
-注意：需要已训练模型权重（backend/models/models/*.pth），
-CI 环境（权重未入库）下自动跳过。
+注意：本模块会访问真实外部 API 和数据库，并注册测试账号。
+仅在配置隔离测试数据库且显式设置 SMARTGRID_RUN_LIVE_E2E=1 时运行；
+普通 pytest 默认跳过，模型资产缺失时同样跳过。
 """
 import os
 import sys
@@ -20,18 +21,24 @@ import pytest
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND_DIR))
 
-# 模型权重存在才运行集成测试（CI 无权重则跳过）
+# TensorFlow 生产模型资产存在才运行集成测试（CI 无权重则跳过）
 MODEL_WEIGHTS = [
-    BACKEND_DIR / "models" / "models" / "enhancedlstm_best_model.pth",
-    BACKEND_DIR / "models" / "models" / "bigru_best_model.pth",
-    BACKEND_DIR / "models" / "models" / "deeptcn_best_model.pth",
-    BACKEND_DIR / "models" / "models" / "spatialtransformer_best_model.pth",
+    BACKEND_DIR / "models" / "tf_assets" / "tf_split_v1" / "load_best.weights.h5",
+    BACKEND_DIR / "models" / "tf_assets" / "tf_split_v1" / "price_best.weights.h5",
+    BACKEND_DIR / "models" / "tf_assets" / "pv_v2" / "pv_v2_best.weights.h5",
 ]
 
-pytestmark = pytest.mark.skipif(
-    not all(p.exists() for p in MODEL_WEIGHTS),
-    reason="模型权重不存在（训练产物未入库），跳过集成测试",
-)
+pytestmark = [
+    pytest.mark.e2e,
+    pytest.mark.skipif(
+        os.getenv("SMARTGRID_RUN_LIVE_E2E") != "1",
+        reason="真实数据库/外部 API 集成测试需要 SMARTGRID_RUN_LIVE_E2E=1 显式启用",
+    ),
+    pytest.mark.skipif(
+        not all(p.exists() for p in MODEL_WEIGHTS),
+        reason="TensorFlow 模型资产不存在（训练产物未入库），跳过集成测试",
+    ),
+]
 
 
 @pytest.fixture(scope="module")
@@ -74,6 +81,7 @@ class TestAuthFlow:
         assert r.status_code == 401
         assert client.get("/api/system/metrics").status_code == 401
         assert client.get("/api/analytics/accuracy/stats").status_code == 401
+        assert client.get("/api/analytics/backtest/date").status_code == 401
 
     def test_public_endpoints_open(self, client):
         assert client.get("/api/health").status_code == 200
@@ -116,7 +124,10 @@ class TestPredictionFlow:
         assert all(5000 <= v <= 30000 for v in loads)
         # 模型信息完整
         names = [m["name"] for m in data["model_info"]]
-        assert len(names) == 4
+        assert "tf_load_split_v1" in names
+        assert "tf_price_split_v1" in names
+        assert any("pv_v2" in name for name in names)
+        assert data["engine"] == "tf_split_v1"
 
     def test_solar_generation(self, client):
         token = _login(client)
@@ -124,8 +135,33 @@ class TestPredictionFlow:
         r = client.get("/api/solar-generation", headers=headers)
         assert r.status_code == 200, f"光伏预测失败: {r.text[:300]}"
         data = r.json()
-        assert data["model_type"] == "ml_ensemble"
+        assert data["model_type"] == "tf_pv_v2"
         assert len(data["hourly_pv_mw"]) == 24
         # 光伏出力非负且不超过合理上限
         pv = data["hourly_pv_mw"]
-        assert all(0 <= float(v) <= 5000 for v in pv)
+        # 装机规模会随年份增长，不使用已经过时的固定 5000 MW 上限。
+        assert all(float(v) >= 0 for v in pv)
+
+
+class TestDayBacktestFlow:
+    def test_range_mode_without_date(self, client):
+        """不带 date 参数：只返回可用日期范围，不触发重计算（CI 安全）"""
+        token = _login(client)
+        headers = {"Authorization": f"Bearer {token}"}
+        r = client.get("/api/analytics/backtest/date", headers=headers)
+        assert r.status_code == 200, f"日期范围查询失败: {r.text[:300]}"
+        data = r.json()
+        assert data["status"] == "success"
+        assert "available_date_range" in data["data"]
+
+    def test_invalid_date_format_422(self, client):
+        token = _login(client)
+        headers = {"Authorization": f"Bearer {token}"}
+        r = client.get("/api/analytics/backtest/date", params={"date": "not-a-date"}, headers=headers)
+        assert r.status_code == 422
+
+    def test_future_date_400(self, client):
+        token = _login(client)
+        headers = {"Authorization": f"Bearer {token}"}
+        r = client.get("/api/analytics/backtest/date", params={"date": "2030-01-01"}, headers=headers)
+        assert r.status_code == 400

@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """认证与令牌测试：密码哈希、JWT 签发/校验、token type 约束、密钥来源。"""
 import os
+import subprocess
 import sys
+from pathlib import Path
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -76,6 +78,14 @@ class TestTokenLifecycle:
 
 
 class TestJwtSecretSource:
+    def test_environment_secret_has_runtime_priority(self, monkeypatch):
+        """即使配置单例已初始化，运行时环境密钥也必须优先。"""
+        from realtime_api.config_manager import get_jwt_secret
+
+        expected = "runtime-secret-that-is-long-enough-for-hs256-tests-123456"
+        monkeypatch.setenv("AUTH_JWT_SECRET_KEY", expected)
+        assert get_jwt_secret() == expected
+
     def test_secret_not_insecure_default(self):
         """密钥必须来自环境变量配置，不能回退到不安全的默认值"""
         from realtime_api.config_manager import get_jwt_secret
@@ -86,3 +96,26 @@ class TestJwtSecretSource:
             "your-secret-key", "default-secret-key",
             "your-secret-key-change-in-production",
         )
+
+    def test_direct_config_import_loads_project_environment(self):
+        """绕过 app.py 直接导入配置时也必须读到项目根目录 .env。"""
+        backend = Path(__file__).resolve().parents[1]
+        env = os.environ.copy()
+        env.pop("AUTH_JWT_SECRET_KEY", None)
+        command = (
+            "from realtime_api.config_manager import get_jwt_secret; "
+            "s=get_jwt_secret(); "
+            "print(len(s)>=32 and s not in "
+            "{'your-secret-key','default-secret-key',"
+            "'your-secret-key-change-in-production'})"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", command],
+            cwd=backend,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=True,
+        )
+        assert result.stdout.strip().splitlines()[-1] == "True"

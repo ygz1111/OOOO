@@ -1,0 +1,17 @@
+**
+!backend/
+!backend/realtime_api/
+!backend/realtime_api/**
+!backend/models/
+!backend/models/tensorflow_load/
+!backend/models/tensorflow_load/**
+!backend/models/tf_assets/
+!backend/models/tf_assets/**
+!backend/config/
+!backend/config/**
+!processed/
+!processed/step4_feature_config.pkl
+!processed/step5_scalers.pkl
+!processed/step5_split_info.pkl
+!deploy/
+!deploy/requirements-server.txt

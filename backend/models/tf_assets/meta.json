@@ -1,0 +1,16 @@
+{
+ "tf_v2": {
+  "weights": "models/tf_assets/tf_v2/tf_v2_best.weights.h5",
+  "scalers_json": "models/tf_assets/tf_v2/scalers.json",
+  "tail": "models/tf_assets/tf_v2/ca_tail.parquet",
+  "origin_ts_local": "2026-04-30 00:00:00",
+  "params": 159524
+ },
+ "pv_v1": {
+  "weights": "models/tf_assets/pv_v1/pv_v1_best.weights.h5",
+  "scalers_json": "models/tf_assets/pv_v1/scalers.json",
+  "tail": "models/tf_assets/pv_v1/pv_tail.parquet",
+  "origin_ts_start": "2026-04-29 23:00:00",
+  "params": 73857
+ }
+}

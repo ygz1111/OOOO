@@ -15,17 +15,16 @@ export const CardSkeleton: React.FC<{ lines?: number }> = ({ lines = 3 }) => (
 
 // 骨架屏 - 指标卡片
 export const MetricCardSkeleton: React.FC = () => (
-  <div className="metric-card animate-fade-in">
-    <div className="flex items-start justify-between mb-2">
-      <div className="flex-1">
-        <div className="skeleton h-3 w-20 mb-2"></div>
-        <div className="skeleton h-8 w-32"></div>
-      </div>
-      <div className="skeleton h-10 w-10 rounded-lg"></div>
+  <div className="metric-card metric-card-skeleton" aria-hidden="true">
+    <div className="metric-heading">
+      <div className="skeleton h-3 w-28 max-w-full"></div>
+      <div className="skeleton h-5 w-5 shrink-0"></div>
     </div>
-    <div className="mt-3 pt-3 border-t border-dark-700/60">
-      <div className="skeleton h-3 w-28"></div>
+    <div className="metric-reading">
+      <div className="skeleton h-9 w-32 max-w-full"></div>
+      <div className="skeleton h-3 w-6"></div>
     </div>
+    <div className="metric-note"><div className="skeleton h-3 w-40 max-w-full"></div></div>
   </div>
 )
 
@@ -82,7 +81,7 @@ export const ErrorBanner: React.FC<{ message: string; onRetry?: () => void }> = 
   onRetry,
 }) => (
   <div
-    className="p-4 bg-danger-500/10 border border-danger-500/30 rounded-xl flex items-center gap-3 animate-fade-in backdrop-blur-sm"
+    className="error-banner"
     role="alert"
   >
     <svg
@@ -99,11 +98,11 @@ export const ErrorBanner: React.FC<{ message: string; onRetry?: () => void }> = 
         d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4a2 2 0 00-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z"
       />
     </svg>
-    <span className="text-danger-300 text-sm flex-1">{message}</span>
+    <span className="min-w-0 flex-1 text-sm">{message}</span>
     {onRetry && (
       <button
         onClick={onRetry}
-        className="text-xs px-3 py-1.5 bg-danger-500/20 hover:bg-danger-500/30 text-danger-300 rounded-lg transition-colors cursor-pointer min-h-[36px] flex items-center"
+        className="btn btn-ghost shrink-0 !text-xs hover:!border-danger-400"
       >
         重试
       </button>

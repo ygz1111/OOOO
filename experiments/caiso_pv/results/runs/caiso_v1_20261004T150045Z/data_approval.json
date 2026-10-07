@@ -1,0 +1,39 @@
+{
+  "status": "approved",
+  "official_label": "CAISO OASIS Solar Actual Generation",
+  "label_confirmation": {
+    "confirmed_on": "2026-10-04",
+    "source": "latest direct human instruction",
+    "report": "SLD_REN_FCST",
+    "renewable_type": "Solar",
+    "market_run_id": "ACTUAL",
+    "hubs": [
+      "NP15",
+      "ZP26",
+      "SP15"
+    ],
+    "aggregation": "sum at identical UTC hourly interval start; display America/Los_Angeles",
+    "allow_forecast_labels": false
+  },
+  "range_and_selection_confirmation": {
+    "answer": "接受完整真实数据交集（推荐）",
+    "confirmed_on": "2026-10-04",
+    "dataset_range": "continuous complete intersection of official labels and archived weather forecasts",
+    "final_selection": "validation_only_before_final_test",
+    "test_use": "fixed candidates final evaluation only"
+  },
+  "bulk_download_authorized": true,
+  "formal_training_authorized": true,
+  "weather_kind": "forecast_fixed_lead_day2",
+  "target_name": "CAISO OASIS Solar Actual Generation",
+  "target_name_zh": "CAISO OASIS 区域太阳能实际发电功率",
+  "approved_at": "2026-10-04T15:00:45.124627+00:00",
+  "dataset_sha256": "7ed08a1a55d79280b406d30eeb90db0aa5647a68a225602fae854c0a18670f4d",
+  "independent_dataset_audit": {
+    "path": "D:\\GitHub\\OOOOOO\\experiments\\caiso_pv\\logs\\dataset_independent_audit_20261004T145916251182Z.json",
+    "sha256": "462716702125e96d6ace78c7ccb5b491ec0270b06440160fe5f40f84bcf158cd",
+    "result": "PASS"
+  },
+  "historical_input_limitation": "Past Solar ACTUAL publication vintage and ERA5 live vintage unverified. Offline research training only; no online readiness claim.",
+  "sample_window_definition": "Past [origin-96h,origin); targets [origin,origin+24h); Train warmup inputs may precede the target partition start, never Validation/Test labels."
+}

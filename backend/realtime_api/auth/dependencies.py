@@ -145,7 +145,7 @@ def check_permission(permission_code: str, error_message: Optional[str] = None):
             auth_crud = AuthCRUD(db)
             roles = await auth_crud.get_user_roles(current_user.id)
             
-            if '系统管理员' in roles:
+            if {'超级管理员', '系统管理员'}.intersection(roles):
                 return current_user
             
             # 检查具体权限
@@ -200,7 +200,7 @@ def rbac_required(*permissions: str, require_all: bool = False):
             
             # 系统管理员拥有全部权限，跳过检查
             roles = await auth_crud.get_user_roles(current_user.id)
-            if '系统管理员' in roles:
+            if {'超级管理员', '系统管理员'}.intersection(roles):
                 return current_user
             
             # 获取用户权限

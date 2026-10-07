@@ -27,32 +27,47 @@ weather:
   openmeteo:
     base_url: "https://api.open-meteo.com/v1"
     forecast_days: 2
-    past_days: 7
+    past_days: 9  # 168h 模型窗口 + temp_mem 指数记忆热启动
     rate_limit_interval: 1.5
     cache_ttl: 300
     
 # ============================================================================
-# 模型配置
+# TensorFlow 模型配置
 # ============================================================================
 models:
-  # 模型权重 (集成学习中各模型的权重)
-  ensemble_weights:
-    lstm: 0.25
-    bigru: 0.25
-    tcn: 0.25
-    transformer: 0.25
-    
-  # 模型文件路径
-  model_paths:
-    lstm: "models/lstm_model.onnx"
-    bigru: "models/bigru_model.onnx"
-    tcn: "models/tcn_model.onnx"
-    transformer: "models/transformer_model.onnx"
-    
   # 特征工程配置
   feature_engineering:
     lookback_window: 168  # 168小时 = 7天
     feature_dimensions: 38
+
+  # ------------------------------------------------------------------
+  # TensorFlow 模型接入 (MMXX 训练产物) 2026-09
+  # 资产目录: backend/models/tf_assets/{tf_split_v1,pv_v2}/
+  #   (由 scripts/prepare_tf_assets.py 从 MMXX 特征表离线冻结 scaler 生成,
+  #    不重新训练; 若资产缺失或加载失败，strict_startup 会阻止后端启动)
+  # ------------------------------------------------------------------
+  engines:
+    load_backend: "tf_split_v1" # tf_split_v1 | tf_v2
+    pv_backend: "tf_pv"
+    enabled: true
+    strict_startup: true        # 所选模型加载失败时明确停止，不进行旧模型回退
+    inference_mode: "live"      # live=ISO-NE+Open-Meteo；demo=仅用于冻结样本验收
+  tf:
+    assets_dir: "models/tf_assets"
+    tf_v2:
+      weights_path: "models/tf_assets/tf_v2/tf_v2_best.weights.h5"
+      scalers_path: "models/tf_assets/tf_v2/scalers.json"
+      tail_path: "models/tf_assets/tf_v2/ca_tail.parquet"
+    tf_split_v1:
+      load_weights_path: "models/tf_assets/tf_split_v1/load_best.weights.h5"
+      price_weights_path: "models/tf_assets/tf_split_v1/price_best.weights.h5"
+      load_scalers_path: "models/tf_assets/tf_split_v1/load_scalers.json"
+      price_scalers_path: "models/tf_assets/tf_split_v1/price_scalers.json"
+      feature_tail_path: "models/tf_assets/tf_split_v1/ca_features.parquet"
+    pv_tf:
+      weights_path: "models/tf_assets/pv_v2/pv_v2_best.weights.h5"
+      metadata_path: "models/tf_assets/pv_v2/metadata.json"
+      tail_path: "models/tf_assets/pv_v2/pv_tail.parquet"
     
 # ============================================================================
 # 数据配置
@@ -109,6 +124,7 @@ cache:
     port: 6379
     db: 0
     password: null
+    protocol: 2  # RESP2，兼容 Windows Redis 3.x 与 Docker Redis 7
     
   # 缓存策略
   strategies:
@@ -147,6 +163,8 @@ database:
     host: "mysql"
     port: 3306
     database: "smart_grid_db"
+    user: "root"
+    password: ""
     pool_size: 20
     pool_recycle: 3600
     connect_timeout: 30
@@ -184,7 +202,7 @@ backup:
 # 以下环境变量可以覆盖配置文件中的设置:
 # - SYSTEM_ENVIRONMENT: 环境 (development/production)
 # - API_PORT: API端口
-# - DATABASE_HOST: 数据库主机
+# - MYSQL_HOST / MYSQL_PORT / MYSQL_DATABASE / MYSQL_USER / MYSQL_PASSWORD
 # - REDIS_HOST: Redis主机
 # - AUTH_JWT_SECRET_KEY: JWT密钥
 # - LOGGING_LEVEL: 日志级别

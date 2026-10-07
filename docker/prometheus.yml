@@ -8,9 +8,11 @@ global:
     monitor: 'smartgrid-prediction'
     environment: 'production'
 
-# 告警规则文件
+# 告警规则文件（2026-08 修复：文件名与 docker/prometheus/alerts.yml 对齐，
+# 根 docker-compose.yml 已单文件挂载该路径；此前引用 alert_rules.yml 不存在，
+# 导致 Prometheus 配置校验失败无法启动）
 rule_files:
-  - '/etc/prometheus/alert_rules.yml'
+  - '/etc/prometheus/alerts.yml'
 
 # 抓取配置
 scrape_configs:
@@ -50,12 +52,13 @@ scrape_configs:
         labels:
           service: 'container-monitor'
 
-  # Redis监控
-  - job_name: 'redis'
-    static_configs:
-      - targets: ['redis:6379']
-        labels:
-          service: 'cache'
+  # Redis监控（需单独部署 redis_exporter 才能抓取；
+  # 直接抓 redis:6379 是 RESP 协议不是 Prometheus 格式，会一直失败，故注释）
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['redis-exporter:9121']
+  #       labels:
+  #         service: 'cache'
 
   # PostgreSQL监控 (如果有postgres_exporter)
   # - job_name: 'postgres'

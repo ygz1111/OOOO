@@ -34,11 +34,26 @@ jobs:
           python -m pip install pytest pytest-cov pytest-asyncio pytest-mock
           python -m pip install -r backend/requirements.txt
 
+      - name: 生成隔离测试配置
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import secrets
+          Path('.env').write_text(
+              'SYSTEM_ENVIRONMENT=testing\nAUTH_JWT_SECRET_KEY=' + secrets.token_hex(32) + '\n',
+              encoding='utf-8',
+          )
+          PY
+
       - name: 运行单元测试
         working-directory: backend
         run: |
-          python -m pytest tests/ -v --tb=short --cov=realtime_api \
-            --cov-report=term-missing
+          python -m pytest tests/ -v --tb=short -o addopts= --cov=realtime_api \
+            --cov-report=term-missing --cov-report=xml:coverage.xml --cov-fail-under=0
+
+      - name: 检查真实覆盖率（保留 80% 门槛）
+        working-directory: backend
+        run: python -m coverage report --fail-under=80
 
       - name: 上传覆盖率报告
         uses: actions/upload-artifact@v4
@@ -70,7 +85,7 @@ jobs:
         continue-on-error: true
 
   type-check:
-    name: 前端类型检查
+    name: 前端测试与构建
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -91,4 +106,12 @@ jobs:
 
       - name: TypeScript 类型检查
         working-directory: frontend
-        run: npx tsc --noEmit
+        run: npm run type-check
+
+      - name: 缓存、认证及页面交互测试
+        working-directory: frontend
+        run: npm test
+
+      - name: 验证生产构建
+        working-directory: frontend
+        run: npm run build

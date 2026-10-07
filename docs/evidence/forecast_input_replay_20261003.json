@@ -1,0 +1,40 @@
+{
+  "archive_id": "372805ae17118b4ce2ec1eb749132baa5824783c97c11b0511cd8dbe8f305a06",
+  "scope": "exact_issued_feature_replay",
+  "uses_later_weather": false,
+  "components": {
+    "load": {
+      "generated_at": "2026-10-03T01:19:05.800606",
+      "origin_hour": "2026-10-03 01:00:00",
+      "input_status": "estimated_inputs",
+      "shape": [
+        24,
+        1
+      ],
+      "max_absolute_difference": 0.0,
+      "matched": true
+    },
+    "price": {
+      "generated_at": "2026-10-03T01:19:06.876549",
+      "origin_hour": "2026-10-03 01:00:00",
+      "input_status": "estimated_inputs",
+      "shape": [
+        24,
+        3
+      ],
+      "max_absolute_difference": 0.0,
+      "matched": true
+    },
+    "pv": {
+      "generated_at": "2026-10-03T01:19:07.608540",
+      "origin_hour": "2026-10-03 01:00:00",
+      "input_status": "estimated_inputs",
+      "shape": [
+        24
+      ],
+      "max_absolute_difference": 0.0,
+      "matched": true
+    }
+  },
+  "all_matched": true
+}

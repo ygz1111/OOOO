@@ -1,0 +1,18 @@
+{
+ "epochs_done": 100,
+ "norm_mean": 0.14460554718971252,
+ "norm_std": 0.22322700917720795,
+ "val": {
+  "MAE": 0.01459,
+  "RMSE": 0.03353,
+  "daytime_MAE": 0.03764,
+  "daytime_nMAE": 0.22678
+ },
+ "test": {
+  "MAE": 0.01821,
+  "RMSE": 0.03957,
+  "daytime_MAE": 0.03902,
+  "daytime_nMAE": 0.17913
+ },
+ "naive24_daytime_MAE": 0.10909
+}

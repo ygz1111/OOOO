@@ -1,0 +1,8 @@
+# Independent model-training/reload environment; never install into production.
+# These are compatibility constraints, not a claim about measured Colab versions.
+# The formal job saves actual versions in logs/dependencies.json and requirements-lock.txt.
+tensorflow==2.20.0
+keras>=3.10.0,<4
+numpy>=1.26.0,<3
+matplotlib>=3.8,<4
+tzdata>=2024.1

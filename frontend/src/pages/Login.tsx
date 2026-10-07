@@ -1,30 +1,23 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Radio, Activity, Cpu, Sparkles, CheckCircle2 } from 'lucide-react'
+import { Activity, ChartColumn, CalendarDays, Sun } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { RegisterRequest } from '../types/auth'
-import { CyberHeader } from '../components/cyber/CyberHeader'
-import { CyberFooter } from '../components/cyber/CyberFooter'
-import { CyberMatrixCanvas } from '../components/cyber/CyberMatrixCanvas'
 import { CyberLoginForm } from '../components/cyber/CyberLoginForm'
-import { GridForecastPreviewHUD } from '../components/cyber/GridForecastPreviewHUD'
-import { BiometricScannerModal } from '../components/cyber/BiometricScannerModal'
 import { RegisterModal } from '../components/cyber/RegisterModal'
 
 const Login: React.FC = () => {
   const { login, register, isAuthenticated } = useAuth()
   const navigate = useNavigate()
   const [lang, setLang] = useState<'zh' | 'en'>('zh')
-  const [isBiometricOpen, setIsBiometricOpen] = useState(false)
   const [isRegisterOpen, setIsRegisterOpen] = useState(false)
 
-  // 已登录用户自动跳转首页
-  if (isAuthenticated) {
-    navigate('/', { replace: true })
-  }
+  useEffect(() => {
+    if (isAuthenticated) navigate('/', { replace: true })
+  }, [isAuthenticated, navigate])
 
   const handleLoginSuccess = async (username: string, password: string, rememberMe: boolean) => {
-    await login({ username, password, remember_me: rememberMe })
+    await login({ username, password, remember_me: rememberMe }, rememberMe)
     navigate('/', { replace: true })
   }
 
@@ -32,120 +25,87 @@ const Login: React.FC = () => {
     await register(data)
   }
 
+  const functions = lang === 'zh'
+    ? [
+        { icon: ChartColumn, title: '负荷与电价预测', description: '查看未来 24 小时预测曲线与小时明细。' },
+        { icon: Sun, title: '光伏出力分析', description: '结合区域气象数据，分析光伏出力变化。' },
+        { icon: CalendarDays, title: '历史回测与误差分析', description: '按日期查询历史结果，核对预测与真实观测。' },
+      ]
+    : [
+        { icon: ChartColumn, title: 'Load and price forecasts', description: 'Review the next 24 hours of forecasts and hourly results.' },
+        { icon: Sun, title: 'Solar generation analysis', description: 'Analyze generation alongside regional weather data.' },
+        { icon: CalendarDays, title: 'Historical evaluation', description: 'Compare dated predictions with observed results.' },
+      ]
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 relative overflow-x-hidden selection:bg-cyan-500 selection:text-slate-950">
-      {/* Dynamic Cyber Matrix Node Canvas Backdrop */}
-      <CyberMatrixCanvas intensity={1.2} />
-
-      {/* Cyberpunk Futuristic Wallpaper Layer */}
-      <div
-        className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center bg-no-repeat opacity-25 mix-blend-luminosity scale-105 transition-all duration-1000"
-        style={{ backgroundImage: `url('/images/smart-grid-cyber.jpg')` }}
-      />
-
-      {/* Futuristic Scanline Overlay */}
-      <div className="fixed inset-0 pointer-events-none z-10 scanline opacity-60" />
-
-      {/* Dark Vignette radial gradient */}
-      <div className="fixed inset-0 pointer-events-none z-10 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(2,6,23,0.85)_100%)]" />
-
-      {/* Top Header */}
-      <CyberHeader lang={lang} setLang={setLang} />
-
-      {/* Main Content Area */}
-      <main className="relative z-20 min-h-[calc(100vh-110px)] pb-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-6">
-          {/* Ticker Bar: Live Grid Status */}
-          <div className="relative rounded-xl border border-cyan-500/20 bg-slate-950/80 backdrop-blur-md px-4 py-2.5 flex flex-wrap items-center justify-between text-xs font-mono text-slate-300 gap-2 shadow-[0_0_20px_rgba(6,182,212,0.1)]">
-            <div className="flex items-center space-x-2">
-              <span className="flex h-2.5 w-2.5 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
-              </span>
-              <span className="text-cyan-300 font-bold font-cyber">
-                {lang === 'zh' ? '国家电网调度中心 - 实时计算节点 #08' : 'State Grid Dispatch Node #08'}
-              </span>
+    <div className="formal-login min-h-screen flex flex-col bg-canvas text-ink">
+      <header className="bg-surface-header border-b border-edge">
+        <div className="max-w-6xl mx-auto px-6 sm:px-8 h-20 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-11 h-11 rounded bg-primary-600 text-white" aria-hidden="true">
+              <Activity className="w-6 h-6" strokeWidth={1.8} />
             </div>
-
-            <div className="hidden sm:flex items-center space-x-6 text-[11px] text-slate-400">
-              <span className="flex items-center space-x-1">
-                <Radio className="w-3.5 h-3.5 text-cyan-400" />
-                <span>{lang === 'zh' ? '全省主干电压: 220.4 kV (正常)' : 'Voltage: 220.4kV'}</span>
-              </span>
-              <span className="flex items-center space-x-1">
-                <Activity className="w-3.5 h-3.5 text-emerald-400" />
-                <span>{lang === 'zh' ? '系统频率: 49.98 Hz' : 'Frequency: 49.98Hz'}</span>
-              </span>
-              <span className="flex items-center space-x-1">
-                <Cpu className="w-3.5 h-3.5 text-purple-400" />
-                <span>{lang === 'zh' ? '神经网络拟合度: R² 0.987' : 'Model R²: 0.987'}</span>
-              </span>
-            </div>
-
-            <div className="text-[11px] text-emerald-400 font-semibold bg-emerald-950/60 px-2.5 py-0.5 rounded border border-emerald-500/30 flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3" />
-              <span>{lang === 'zh' ? '毕业设计答辩系统 Ready' : 'Thesis Portal Online'}</span>
-            </div>
-          </div>
-
-          {/* Main Dual Grid Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start pt-2">
-            {/* Left Column (Desktop): Grid Load Forecasting Live Preview HUD */}
-            <div className="hidden lg:block lg:col-span-6 space-y-5">
-              <GridForecastPreviewHUD lang={lang} />
-
-              {/* Thesis Highlights Box */}
-              <div className="rounded-2xl cyber-glass p-5 border border-purple-500/30 space-y-3 font-tech text-xs">
-                <div className="flex items-center space-x-2 text-purple-300 font-cyber font-bold text-sm">
-                  <Sparkles className="w-4 h-4 text-purple-400" />
-                  <span>{lang === 'zh' ? '毕业设计核心创新点亮点展示' : 'Thesis Research Innovations'}</span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 font-mono">
-                  <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800">
-                    <div className="text-cyan-400 font-bold mb-0.5">01 / 时空结合 (ST-GCN)</div>
-                    <div className="text-slate-400 text-[11px]">{lang === 'zh' ? '构建变电站拓扑图，捕获空间电量分流传递' : 'Captures spatial topology load transfers'}</div>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800">
-                    <div className="text-purple-400 font-bold mb-0.5">02 / Transformer注意力</div>
-                    <div className="text-slate-400 text-[11px]">{lang === 'zh' ? '多头自注意力机制提取气象突变与时间周期性' : 'Multi-head attention for weather spikes'}</div>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800">
-                    <div className="text-amber-400 font-bold mb-0.5">03 / 超短期负荷削峰</div>
-                    <div className="text-slate-400 text-[11px]">{lang === 'zh' ? '提前15分钟提供可信度98%以上的调峰指令' : '15-min ahead peak shaving alert'}</div>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800">
-                    <div className="text-emerald-400 font-bold mb-0.5">04 / 低算力延迟 (GPU)</div>
-                    <div className="text-slate-400 text-[11px]">{lang === 'zh' ? '单个批次推理耗时仅1.8ms，满足实效调度' : 'Inference latency under 1.8ms'}</div>
-                  </div>
-                </div>
+            <div>
+              <div className="text-lg sm:text-xl font-semibold tracking-wide text-ink">
+                {lang === 'zh' ? '智能电网负荷预测系统' : 'Smart Grid Forecasting System'}
+              </div>
+              <div className="hidden sm:block text-xs text-muted mt-1">
+                {lang === 'zh' ? '负荷预测 · 电价分析 · 光伏出力 · 历史回测' : 'Load · Price · Solar generation · Historical evaluation'}
               </div>
             </div>
-
-            {/* Right Column: High-end Cyberpunk Login Form */}
-            <div className="lg:col-span-6 w-full flex justify-center">
-              <CyberLoginForm
-                onLoginSuccess={handleLoginSuccess}
-                onOpenBiometric={() => setIsBiometricOpen(true)}
-                onOpenRegister={() => setIsRegisterOpen(true)}
-                lang={lang}
-              />
-            </div>
-
-            {/* Mobile-only Preview HUD below login on small screens */}
-            <div className="block lg:hidden col-span-1 mt-4">
-              <GridForecastPreviewHUD lang={lang} />
-            </div>
           </div>
+          <button
+            type="button"
+            onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')}
+            className="text-sm text-muted hover:text-primary-600 px-2 py-2 shrink-0"
+            aria-label={lang === 'zh' ? 'Switch to English' : '切换中文'}
+          >
+            {lang === 'zh' ? 'English' : '中文'}
+          </button>
+        </div>
+      </header>
+
+      <main className="flex-1 flex items-center py-12 sm:py-16">
+        <div className="w-full max-w-6xl mx-auto px-6 sm:px-8 grid lg:grid-cols-[1fr_420px] gap-12 lg:gap-20 items-center">
+          <section className="formal-login-intro">
+            <div className="text-sm font-medium text-primary-600 mb-4">
+              {lang === 'zh' ? '电力数据分析与预测' : 'Power data analysis and forecasting'}
+            </div>
+            <h1 className="text-3xl sm:text-4xl font-semibold text-ink leading-tight tracking-wide">
+              {lang === 'zh' ? '电网负荷预测与运行分析' : 'Grid load forecasts and operational analysis'}
+            </h1>
+            <p className="text-sm sm:text-base text-muted leading-7 mt-5 max-w-xl">
+              {lang === 'zh'
+                ? '基于 ISO-NE 新英格兰区域电网数据，提供负荷、电价及光伏预测，支持历史数据查询和预测误差分析。'
+                : 'Forecast load, electricity prices and solar generation using ISO-NE New England data, with historical queries and forecast evaluation.'}
+            </p>
+            <div className="mt-8 border-t border-edge max-w-xl">
+              {functions.map(({ icon: Icon, title, description }) => (
+                <div key={title} className="flex gap-4 py-5 border-b border-edge">
+                  <Icon className="w-5 h-5 text-primary-600 shrink-0 mt-1" strokeWidth={1.7} aria-hidden="true" />
+                  <div>
+                    <h2 className="text-sm font-semibold text-ink">{title}</h2>
+                    <p className="text-sm text-muted mt-1 leading-6">{description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted mt-5 leading-6">
+              {lang === 'zh' ? '数据来源：ISO-NE、Open-Meteo　｜　时间基准：美国东部时间' : 'Data: ISO-NE and Open-Meteo · Time zone: US Eastern'}
+            </p>
+          </section>
+
+          <CyberLoginForm
+            onLoginSuccess={handleLoginSuccess}
+            onOpenRegister={() => setIsRegisterOpen(true)}
+            lang={lang}
+          />
         </div>
       </main>
 
-      {/* Modals */}
-      <BiometricScannerModal
-        isOpen={isBiometricOpen}
-        onClose={() => setIsBiometricOpen(false)}
-        lang={lang}
-      />
+      <footer className="px-6 py-5 text-center text-xs text-muted border-t border-edge bg-surface-header leading-6">
+        {lang === 'zh' ? '基于 TensorFlow 的智能电网负荷预测系统　｜　本地运行' : 'TensorFlow Smart Grid Forecasting System · Local operation'}
+      </footer>
 
       <RegisterModal
         isOpen={isRegisterOpen}
@@ -153,9 +113,6 @@ const Login: React.FC = () => {
         onRegisterSuccess={handleRegisterSuccess}
         lang={lang}
       />
-
-      {/* Footer */}
-      <CyberFooter lang={lang} />
     </div>
   )
 }

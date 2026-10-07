@@ -1,0 +1,10 @@
+[
+  {
+    "from": "GET/POST",
+    "to": "GET/\nPOST"
+  },
+  {
+    "from": "GET/DELETE",
+    "to": "GET/\nDELETE"
+  }
+]

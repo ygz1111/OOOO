@@ -7,12 +7,16 @@ uvicorn>=0.24.0
 pydantic>=2.4.0
 
 # 数据处理
-pandas>=1.5.0
-numpy>=1.23.0
+pandas>=2.0.0
+# TensorFlow 2.16.1 需要 NumPy < 2；不限制会在新环境中安装出不兼容组合。
+numpy>=1.23.5,<2.0
 requests>=2.28.0
 
-# 深度学习模型推理
-torch>=2.0.0
+# TensorFlow 生产模型推理（Keras 3 weights.h5）
+tensorflow==2.16.1
+keras==3.3.3
+h5py>=3.10.0,<4.0
+pyarrow>=15.0.0,<17.0
 scikit-learn>=1.2.0
 
 # 数据库支持
@@ -23,8 +27,8 @@ aiomysql>=0.2.0
 
 # 认证授权
 PyJWT>=2.8.0
-passlib>=1.7.4
-bcrypt>=4.0.0
+# 认证代码直接使用 bcrypt；不再安装与 bcrypt 5 不兼容且未被使用的 passlib。
+bcrypt>=4.0.0,<6.0
 email-validator>=2.0.0
 
 # 配置文件支持
@@ -33,6 +37,8 @@ python-dotenv>=1.0.0
 
 # 系统监控
 psutil>=5.9.0
+prometheus-client>=0.20.0
+redis>=5.0.0
 
 # 模型训练可视化
 matplotlib>=3.7.0

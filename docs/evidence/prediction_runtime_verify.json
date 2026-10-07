@@ -1,0 +1,96 @@
+{
+  "business_without_auth": 401,
+  "favicon": 204,
+  "accuracy": {
+    "status": 200,
+    "request_ms": 494.24,
+    "metric_scope": "latest_snapshot_per_target",
+    "lead_time_scope": "earliest_snapshot_per_target_within_lead_group",
+    "groups": [
+      {
+        "key": "1_6",
+        "count": 17,
+        "mae": 434.44917647058793,
+        "rmse": 660.5505181010225,
+        "mape": 3.9433992465890326
+      },
+      {
+        "key": "7_12",
+        "count": 16,
+        "mae": 543.1276250000001,
+        "rmse": 765.6407617233917,
+        "mape": 4.774971232669801
+      },
+      {
+        "key": "13_24",
+        "count": 28,
+        "mae": 370.45975,
+        "rmse": 415.3674495105422,
+        "mape": 3.114460332795371
+      }
+    ]
+  },
+  "prediction": {
+    "status": 200,
+    "request_ms": 353.4,
+    "points": 24,
+    "generated_at": "2026-10-03T01:19:05.800606",
+    "archive": {
+      "status": "saved",
+      "archive_id": "372805ae17118b4ce2ec1eb749132baa5824783c97c11b0511cd8dbe8f305a06",
+      "weather_run_status": "not_exposed_by_endpoint",
+      "save_time_ms": 159.53,
+      "compressed_bytes": 146401
+    },
+    "components": {
+      "load": {
+        "status": "cached",
+        "observed_through": "2026-10-03 01:00:00",
+        "generated_at": "2026-10-03T01:19:05.800606",
+        "input_status": "estimated_inputs",
+        "method": "tensorflow",
+        "input_archive": {
+          "status": "saved",
+          "archive_id": "372805ae17118b4ce2ec1eb749132baa5824783c97c11b0511cd8dbe8f305a06",
+          "weather_run_status": "not_exposed_by_endpoint",
+          "save_time_ms": 159.53,
+          "compressed_bytes": 146401
+        },
+        "notice": "更新进行中，暂用此前未过期预测"
+      },
+      "price": {
+        "status": "cached",
+        "observed_through": "2026-10-03 01:00:00",
+        "generated_at": "2026-10-03T01:19:06.876549",
+        "input_status": "estimated_inputs",
+        "method": "tensorflow",
+        "input_archive": {
+          "status": "saved",
+          "archive_id": "372805ae17118b4ce2ec1eb749132baa5824783c97c11b0511cd8dbe8f305a06",
+          "weather_run_status": "not_exposed_by_endpoint",
+          "save_time_ms": 159.53,
+          "compressed_bytes": 146401
+        },
+        "notice": "更新进行中，暂用此前未过期预测"
+      },
+      "pv": {
+        "status": "cached",
+        "observed_through": "2026-10-03 01:00:00",
+        "generated_at": "2026-10-03T01:19:07.608540",
+        "input_status": "estimated_inputs",
+        "method": "tensorflow",
+        "input_archive": {
+          "status": "saved",
+          "archive_id": "372805ae17118b4ce2ec1eb749132baa5824783c97c11b0511cd8dbe8f305a06",
+          "weather_run_status": "not_exposed_by_endpoint",
+          "save_time_ms": 159.53,
+          "compressed_bytes": 146401
+        },
+        "notice": "更新进行中，暂用此前未过期预测"
+      }
+    },
+    "first_target": "2026-10-03T02:00:00",
+    "last_target": "2026-10-04T01:00:00"
+  },
+  "frontend": 200
+}

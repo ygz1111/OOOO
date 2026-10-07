@@ -12,10 +12,31 @@ interface AuthContextType {
   isAuthenticated: boolean
   isLoading: boolean
 
-  login: (credentials: LoginRequest) => Promise<void>
+  login: (credentials: LoginRequest, rememberMe?: boolean) => Promise<void>
   register: (data: RegisterRequest) => Promise<void>
   logout: () => Promise<void>
   clearAuth: () => void
+}
+
+// 2026-08 优化："记住我"真实生效：
+//   勾选 → localStorage（跨会话持久）
+//   不勾选 → sessionStorage（仅当前浏览器会话，关闭即失效）
+// 此前无论勾选与否都无条件写入 localStorage，"记住我"形同虚设。
+const persist = {
+  get(key: string): string | null {
+    return localStorage.getItem(key) ?? sessionStorage.getItem(key)
+  },
+  set(key: string, value: string, remember: boolean): void {
+    if (remember) {
+      localStorage.setItem(key, value)
+    } else {
+      sessionStorage.setItem(key, value)
+    }
+  },
+  remove(key: string): void {
+    localStorage.removeItem(key)
+    sessionStorage.removeItem(key)
+  },
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -37,7 +58,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // 从 localStorage 恢复认证状态
+  const clearAuth = useCallback(() => {
+    persist.remove(TOKEN_KEY)
+    persist.remove(REFRESH_TOKEN_KEY)
+    persist.remove(USER_KEY)
+    setToken(null)
+    setUser(null)
+    apiService.setAuthToken(null)
+  }, [])
+
+  // 从 localStorage/sessionStorage 恢复认证状态
   useEffect(() => {
     // 注册 401 自动处理：token 过期时 apiService 会先用 refresh token 刷新并重试；
     // 刷新也失败（refresh token 失效）才登出
@@ -48,8 +78,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setToken(newToken)
     })
 
-    const storedToken = localStorage.getItem(TOKEN_KEY)
-    const storedUser = localStorage.getItem(USER_KEY)
+    const storedToken = persist.get(TOKEN_KEY)
+    const storedUser = persist.get(USER_KEY)
 
     if (storedToken && storedUser) {
       try {
@@ -58,22 +88,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(parsedUser)
         apiService.setAuthToken(storedToken)
       } catch {
-        localStorage.removeItem(TOKEN_KEY)
-        localStorage.removeItem(REFRESH_TOKEN_KEY)
-        localStorage.removeItem(USER_KEY)
+        persist.remove(TOKEN_KEY)
+        persist.remove(REFRESH_TOKEN_KEY)
+        persist.remove(USER_KEY)
       }
     }
     setIsLoading(false)
-  }, [])
+  }, [clearAuth])
 
-  const login = useCallback(async (credentials: LoginRequest) => {
+  const login = useCallback(async (credentials: LoginRequest, rememberMe: boolean = true) => {
     const response = await apiService.login(credentials)
 
-    localStorage.setItem(TOKEN_KEY, response.access_token)
+    // 勾选"记住我"→ 持久存储；否则仅当前会话（sessionStorage）
+    persist.set(TOKEN_KEY, response.access_token, rememberMe)
     if (response.refresh_token) {
-      localStorage.setItem(REFRESH_TOKEN_KEY, response.refresh_token)
+      persist.set(REFRESH_TOKEN_KEY, response.refresh_token, rememberMe)
     }
-    localStorage.setItem(USER_KEY, JSON.stringify(response.user))
+    persist.set(USER_KEY, JSON.stringify(response.user), rememberMe)
 
     setToken(response.access_token)
     setUser(response.user)
@@ -92,23 +123,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch {
       // 即使后端登出失败也清除本地状态
     } finally {
-      localStorage.removeItem(TOKEN_KEY)
-      localStorage.removeItem(REFRESH_TOKEN_KEY)
-      localStorage.removeItem(USER_KEY)
+      persist.remove(TOKEN_KEY)
+      persist.remove(REFRESH_TOKEN_KEY)
+      persist.remove(USER_KEY)
       setToken(null)
       setUser(null)
       apiService.setAuthToken(null)
     }
   }, [token])
-
-  const clearAuth = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(REFRESH_TOKEN_KEY)
-    localStorage.removeItem(USER_KEY)
-    setToken(null)
-    setUser(null)
-    apiService.setAuthToken(null)
-  }, [])
 
   const value: AuthContextType = {
     user,

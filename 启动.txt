@@ -1,0 +1,10 @@
+在项目根目录 D:\GitHub\OOOOOO 运行：
+
+启动：.\start.ps1
+停止：.\stop.ps1
+
+前端：http://localhost:3000
+后端：http://localhost:8000
+
+目录与操作说明见 README.md；论文及其配套资料统一放在 Word/。
+启停脚本会核验本项目进程，请使用脚本操作服务。

@@ -6,8 +6,8 @@
   - weather_validator: 气象数据质量验证模块
   - feature_generator: 实时特征工程模块
   - normalization_adapter: 数据归一化适配器
-  - prediction_service: 深度学习模型推理服务
-  - pv_estimator: 光伏发电估算模块
+  - tf_split_service: TensorFlow 负荷与电价推理服务
+  - tf_pv_service: TensorFlow 光伏推理服务
   - net_load_calculator: 净负荷计算模块
   - monitoring_service: 系统监控模块
 """
@@ -32,18 +32,6 @@ from .normalization_adapter import (
     NormalizationResult,
     NormalizationError,
     ScalerLoadError,
-)
-from .prediction_service import (
-    ModelInferenceService,
-    InferenceResult,
-    ModelInferenceError,
-    ModelLoadError,
-)
-from .pv_estimator import (
-    PVGenerationEstimator,
-    PVForecastResult,
-    PanelType,
-    PANEL_TYPES,
 )
 from .monitoring_service import (
     MonitoringService,
@@ -71,14 +59,6 @@ __all__ = [
     "NormalizationResult",
     "NormalizationError",
     "ScalerLoadError",
-    "ModelInferenceService",
-    "InferenceResult",
-    "ModelInferenceError",
-    "ModelLoadError",
-    "PVGenerationEstimator",
-    "PVForecastResult",
-    "PanelType",
-    "PANEL_TYPES",
     "MonitoringService",
     "get_monitoring_service",
     "SystemMetrics",

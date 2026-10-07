@@ -1,0 +1,41 @@
+{
+  "purpose": "Random tensors: shape/finite gradients/save-load only; NO formal training metrics",
+  "hardware": {
+    "tensorflow": "2.16.1",
+    "gpus": [],
+    "seed": 42,
+    "cuda_build": false
+  },
+  "models": {
+    "gru": {
+      "parameters": 190785,
+      "shape": [
+        2,
+        24,
+        1
+      ],
+      "finite_gradients": true,
+      "new_process_reload": "PASS"
+    },
+    "tcn_gru": {
+      "parameters": 445473,
+      "shape": [
+        2,
+        24,
+        1
+      ],
+      "finite_gradients": true,
+      "new_process_reload": "PASS"
+    },
+    "tcn_gru_attention": {
+      "parameters": 511777,
+      "shape": [
+        2,
+        24,
+        1
+      ],
+      "finite_gradients": true,
+      "new_process_reload": "PASS"
+    }
+  }
+}

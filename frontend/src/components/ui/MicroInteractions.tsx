@@ -16,9 +16,9 @@ export const RefreshButton: React.FC<RefreshButtonProps> = ({ onClick, isLoading
   <button
     onClick={onClick}
     disabled={isLoading}
-    className={`btn btn-ghost !py-1.5 !text-sm ${className}`}
+    className={`btn ${/(?:^|\s)btn-(?:primary|success|ghost)(?:\s|$)/.test(className) ? '' : 'btn-ghost'} !py-1.5 !text-sm ${className}`}
   >
-    <RefreshCw className={`w-4 h-4 btn-refresh ${isLoading ? 'spinning' : ''}`} />
+    <RefreshCw className={`w-4 h-4 btn-refresh ${isLoading ? 'spinning' : ''}`} aria-hidden="true" />
     刷新
   </button>
 )

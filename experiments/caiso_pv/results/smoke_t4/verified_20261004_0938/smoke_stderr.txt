@@ -1,0 +1,8 @@
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1791106851.699006    3731 gpu_device.cc:2020] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 13641 MB memory:  -> device: 0, name: Tesla T4, pci bus id: 0000:00:04.0, compute capability: 7.5
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1791106863.283204    3860 gpu_device.cc:2020] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 13481 MB memory:  -> device: 0, name: Tesla T4, pci bus id: 0000:00:04.0, compute capability: 7.5
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1791106877.361738    3982 gpu_device.cc:2020] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 13383 MB memory:  -> device: 0, name: Tesla T4, pci bus id: 0000:00:04.0, compute capability: 7.5
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1791106889.638468    4103 gpu_device.cc:2020] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 13383 MB memory:  -> device: 0, name: Tesla T4, pci bus id: 0000:00:04.0, compute capability: 7.5

@@ -1,0 +1,19 @@
+{
+  "status": "PASS",
+  "new_process": true,
+  "model_path": "/content/caiso_pv_formal_caiso_v1_20261004T150045Z/results/runs/caiso_v1_20261004T150045Z/models/final.keras",
+  "target_name": "CAISO OASIS Solar Actual Generation",
+  "verification_basis": "raw Test features -> saved Train scalers -> model -> signed MW",
+  "shape": [
+    2,
+    24,
+    1
+  ],
+  "max_absolute_difference_scaled": 4.76837158203125e-07,
+  "max_absolute_difference_mw": 0.003002472789376043,
+  "rtol": 0.0001,
+  "atol": 1e-05,
+  "atol_scaled": 1e-05,
+  "atol_mw": 0.0629664180560034,
+  "tensorflow": "2.20.0"
+}

@@ -1,0 +1,1 @@
+Incomplete eager inference attempt, intentionally stopped. Not a validation result. Use prediction_audit_20261003_final/report.json.

@@ -233,6 +233,14 @@ class OpenMeteoClient:
         self._cached_reports: Optional[Dict[str, DataQualityReport]] = None
         self._cache_timestamp: float = 0.0
 
+        # 并发单飞（2026-08 修复）：首屏多个请求（prediction/load、weather/current、
+        # overview）会同时触发全量气象拉取，各自串行请求 6 站点（约 15-20s）。
+        # 通过条件变量让并发请求共享同一次拉取结果，避免重复拉取与限流。
+        # 复用 _cache_lock 作为条件变量底层锁，避免双锁交叉等待。
+        self._fetch_cond = threading.Condition(self._cache_lock)
+        self._fetching = False
+        self._last_fetch_failed = False
+
         # 创建带重试机制的 requests Session
         self.session = self._create_session()
 
@@ -393,86 +401,122 @@ class OpenMeteoClient:
         """
         # ── 缓存检查：如果指定了全部站点且缓存有效，直接返回缓存 ──
         # force_refresh=True 时跳过缓存，强制请求 API
-        use_cache = locations is None and not force_refresh
-        if use_cache:
+        full_location_request = locations is None
+        if full_location_request:
             with self._cache_lock:
                 if self._cached_df is not None and self._cached_reports is not None:
                     age = time.time() - self._cache_timestamp
-                    if age < self._cache_ttl:
+                    if not force_refresh and age < self._cache_ttl:
                         logger.info(
                             f"📦 使用缓存气象数据 (年龄: {age:.0f}s, TTL: {self._cache_ttl}s)"
                         )
                         return self._cached_df.copy(), dict(self._cached_reports)
 
-        target_locations = locations or self.locations
-        all_dfs: List[pd.DataFrame] = []
-        quality_reports: Dict[str, DataQualityReport] = {}
-
-        logger.info(f"=" * 60)
-        logger.info(f"开始获取 {len(target_locations)} 个气象站点的数据")
-        logger.info(f"=" * 60)
-
-        for location in target_locations:
-            # 1. 获取原始数据
-            raw_data = self._fetch_single_location(location)
-
-            if raw_data is None:
-                logger.error(f"跳过 {location.name}：数据获取失败")
-                quality_reports[location.name] = DataQualityReport(
-                    location=location.name,
-                    is_valid=False,
-                    issues=["API请求失败，未获取到数据"],
-                )
-                continue
-
-            # 2. 解析为 DataFrame
-            df, report = self._parse_response(raw_data, location)
-
-            # 3. 数据验证和清洗
-            df, report = self._validate_and_clean(df, report)
-
-            if df is not None and len(df) > 0:
-                all_dfs.append(df)
-                quality_reports[location.name] = report
-                logger.info(
-                    f"  📊 {location.name}: {len(df)} 条记录, "
-                    f"时间范围 {df['timestamp'].iloc[0]} ~ {df['timestamp'].iloc[-1]}"
-                )
-            else:
-                logger.error(f"  ❌ {location.name}: 解析后数据为空")
-                report.is_valid = False
-                report.issues.append("解析后数据为空")
-                quality_reports[location.name] = report
-
-        # 合并所有站点数据
-        if all_dfs:
-            combined_df = pd.concat(all_dfs, ignore_index=True)
-            logger.info(f"\n✅ 数据获取完成: 共 {len(combined_df)} 条记录, "
-                        f"{len(target_locations)} 个站点")
-            self._print_summary(combined_df, quality_reports)
-
-            # ── 更新缓存（仅当获取了全部站点时）──
-            if use_cache:
-                with self._cache_lock:
-                    self._cached_df = combined_df.copy()
-                    self._cached_reports = dict(quality_reports)
-                    self._cache_timestamp = time.time()
-                    logger.info(f"📦 气象数据已缓存 (TTL: {self._cache_ttl}s)")
-        else:
-            combined_df = pd.DataFrame()
-            logger.error("❌ 所有站点数据获取失败，返回空DataFrame")
-
-            # ── 如果有缓存且全部失败，返回过期缓存作为降级方案 ──
-            if use_cache:
-                with self._cache_lock:
-                    if self._cached_df is not None:
-                        age = time.time() - self._cache_timestamp
-                        logger.warning(
-                            f"⚠️ API 全部失败，返回过期缓存 (年龄: {age:.0f}s)"
-                        )
+            # ── 并发单飞（2026-08 修复）──
+            # 缓存未命中时，多个并发请求（首屏 prediction/load、weather/current、
+            # overview 同时触发）共享同一次拉取：首个请求负责拉取并写缓存，
+            # 其余请求等待其完成（条件变量）后直接复用缓存结果，避免重复请求 6 站点。
+            with self._fetch_cond:
+                waited = False
+                while self._fetching:
+                    waited = True
+                    self._fetch_cond.wait(timeout=15)
+                if waited and self._last_fetch_failed:
+                    raise RuntimeError("并发气象更新失败，请稍后重试")
+                # 重新校验年龄，不能把过期缓存永久当作并发请求的新结果。
+                if self._cached_df is not None and self._cached_reports is not None:
+                    age = time.time() - self._cache_timestamp
+                    if (not force_refresh or waited) and age < self._cache_ttl:
                         return self._cached_df.copy(), dict(self._cached_reports)
+                    if waited:
+                        raise RuntimeError("并发气象更新失败，请稍后重试")
+                self._fetching = True
+                self._last_fetch_failed = True
 
-        return combined_df, quality_reports
+        try:
+            target_locations = locations or self.locations
+            all_dfs: List[pd.DataFrame] = []
+            quality_reports: Dict[str, DataQualityReport] = {}
+            fetched_locations = []
+
+            logger.info(f"=" * 60)
+            logger.info(f"开始获取 {len(target_locations)} 个气象站点的数据")
+            logger.info(f"=" * 60)
+
+            for location in target_locations:
+                # 1. 获取原始数据
+                raw_data = self._fetch_single_location(location)
+
+                if raw_data is None:
+                    logger.error(f"跳过 {location.name}：数据获取失败")
+                    quality_reports[location.name] = DataQualityReport(
+                        location=location.name,
+                        is_valid=False,
+                        issues=["API请求失败，未获取到数据"],
+                    )
+                    continue
+
+                # 2. 解析为 DataFrame
+                df, report = self._parse_response(raw_data, location)
+
+                # 3. 数据验证和清洗
+                df, report = self._validate_and_clean(df, report)
+
+                if df is not None and len(df) > 0 and report.is_valid:
+                    all_dfs.append(df)
+                    fetched_locations.append({"location": location.name,
+                        "latitude": location.lat, "longitude": location.lon,
+                        "received_at": datetime.now(timezone.utc).isoformat()})
+                    quality_reports[location.name] = report
+                    logger.info(
+                        f"  📊 {location.name}: {len(df)} 条记录, "
+                        f"时间范围 {df['timestamp'].iloc[0]} ~ {df['timestamp'].iloc[-1]}"
+                    )
+                else:
+                    logger.error(f"  ❌ {location.name}: 解析后数据为空或质量校验失败")
+                    report.is_valid = False
+                    if df is None or len(df) == 0:
+                        report.issues.append("解析后数据为空")
+                    quality_reports[location.name] = report
+
+            # 合并所有站点数据
+            if all_dfs:
+                combined_df = pd.concat(all_dfs, ignore_index=True)
+                combined_df.attrs["forecast_provenance"] = {
+                    "source": "open_meteo_forecast", "endpoint": self.API_URL,
+                    "timezone": self.timezone_str, "hourly_variables": list(self.weather_params),
+                    "past_days": self.past_days, "forecast_days": self.forecast_days,
+                    "locations": fetched_locations, "model_run": None,
+                    "run_status": "not_exposed_by_endpoint",
+                    "quality": [report.to_dict() for report in quality_reports.values()],
+                }
+                logger.info(f"\n✅ 数据获取完成: 共 {len(combined_df)} 条记录, "
+                            f"{len(target_locations)} 个站点")
+                self._print_summary(combined_df, quality_reports)
+
+                # ── 更新缓存（获取全部站点时）──
+                # 手动 force_refresh 的新结果也必须替换共享缓存；旧实现只把
+                # 数据返回给当前请求，随后普通请求仍会读到刷新前的旧数据。
+                if full_location_request:
+                    with self._cache_lock:
+                        self._cached_df = combined_df.copy()
+                        self._cached_reports = dict(quality_reports)
+                        self._cache_timestamp = time.time()
+                        self._last_fetch_failed = False
+                        logger.info(f"📦 气象数据已缓存 (TTL: {self._cache_ttl}s)")
+            else:
+                combined_df = pd.DataFrame()
+                logger.error("❌ 所有站点数据获取失败，返回空DataFrame")
+
+                # 不将无限期过期天气冒充实时输入；页面保留旧图并显示刷新错误。
+
+            return combined_df, quality_reports
+        finally:
+            # 单飞发起者：无论成功失败都必须释放标志并唤醒等待者
+            if full_location_request:
+                with self._fetch_cond:
+                    self._fetching = False
+                    self._fetch_cond.notify_all()
 
     # ========================================================================
     # 数据解析
@@ -577,6 +621,16 @@ class OpenMeteoClient:
         if df is None or len(df) == 0:
             return df, report
 
+        # Open-Meteo 响应中只要混入一个空字符串或非数字值，pandas 就可能把
+        # 整列推断为 object。新版 pandas 禁止直接对 object 列插值，因此先把
+        # 所有气象参数统一转换为数值；无法解析的值按缺失值进入后续插值流程。
+        df = df.copy()
+        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+        df = df.dropna(subset=["timestamp"]).sort_values("timestamp").reset_index(drop=True)
+        param_cols = [c for c in df.columns if c in self.weather_params]
+        for param in param_cols:
+            df[param] = pd.to_numeric(df[param], errors="coerce")
+
         # ------ 1. 时间连续性检查 ------
         if len(df) > 1:
             time_diffs = df["timestamp"].diff().dt.total_seconds()
@@ -589,7 +643,6 @@ class OpenMeteoClient:
                 logger.warning(f"  {report.location}: {gap_count} 个时间间隔异常")
 
         # ------ 2. 缺失值统计和处理 ------
-        param_cols = [c for c in df.columns if c in self.weather_params]
         total_missing = df[param_cols].isna().sum().sum()
         report.missing_values = int(total_missing)
 
@@ -653,22 +706,38 @@ class OpenMeteoClient:
             df[param_cols] = df[param_cols].ffill().bfill()
             logger.info(f"  {report.location}: 残留缺失值 {final_missing} 个已填充")
 
-        # ------ 5.1 整列全 NaN（API 未返回该参数）→ 填充物理合理默认值 ------
-        # ffill/bfill 对整列 NaN 无效，这里按参数特性给默认值，保证下游特征工程不崩
+        # ------ 5.1 整列全 NaN（API 未返回该参数）------
+        # 温度、露点、云量和短波辐射是三个生产模型的关键输入；整列缺失时
+        # 不能用“晴天/常温”等默认值伪装成真实观测。该站点会被标为无效并
+        # 在多站点合并时排除，让预测管线明确报数据不完整。非关键展示字段
+        # 仍可使用物理合理默认值维持气象页面可用。
+        critical_model_params = {
+            "temperature_2m", "dew_point_2m", "cloud_cover", "shortwave_radiation"
+        }
+        critical_missing = []
         for param in param_cols:
             if df[param].isna().all():
                 default = self._default_value_for(param)
                 df[param] = default
-                logger.warning(
-                    f"  {report.location}: 参数 {param} 整列缺失，填充默认值 {default}"
-                )
-                report.issues.append(f"{param}: 整列缺失，填充默认值")
+                if param in critical_model_params:
+                    critical_missing.append(param)
+                    logger.error(
+                        f"  {report.location}: 模型关键参数 {param} 整列缺失，站点数据无效"
+                    )
+                    report.issues.append(f"{param}: 模型关键参数整列缺失，站点数据无效")
+                else:
+                    logger.warning(
+                        f"  {report.location}: 参数 {param} 整列缺失，填充默认值 {default}"
+                    )
+                    report.issues.append(f"{param}: 整列缺失，填充默认值")
 
         # 更新报告有效性
-        if report.total_records > 0 and df[param_cols].isna().sum().sum() == 0:
-            report.is_valid = True
-        else:
-            report.is_valid = report.total_records > 0
+        report.is_valid = bool(
+            report.is_valid
+            and report.total_records > 0
+            and df[param_cols].isna().sum().sum() == 0
+            and not critical_missing
+        )
 
         return df, report
 

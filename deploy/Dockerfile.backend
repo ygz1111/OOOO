@@ -1,0 +1,31 @@
+FROM alibaba-cloud-linux-3-registry.cn-hangzhou.cr.aliyuncs.com/alinux3/python:3.11.1
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app/backend \
+    TF_CPP_MIN_LOG_LEVEL=2
+
+WORKDIR /app
+
+COPY deploy/requirements-server.txt /app/requirements.txt
+RUN pip install --no-cache-dir \
+    --index-url https://mirrors.aliyun.com/pypi/simple/ \
+    -r /app/requirements.txt
+
+COPY backend/realtime_api/ /app/backend/realtime_api/
+COPY backend/models/tensorflow_load/ /app/backend/models/tensorflow_load/
+COPY backend/models/tf_assets/ /app/backend/models/tf_assets/
+COPY backend/config/ /app/backend/config/
+
+# 旧特征组件会在启动时读取这三个很小的冻结配置；在线 TensorFlow
+# 预测本身使用 backend/models/tf_assets，不需要上传 1.5 GB 训练集。
+COPY processed/step4_feature_config.pkl /app/processed/step4_feature_config.pkl
+COPY processed/step5_scalers.pkl /app/processed/step5_scalers.pkl
+COPY processed/step5_split_info.pkl /app/processed/step5_split_info.pkl
+
+WORKDIR /app/backend
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=5 \
+    CMD ["python", "-c", "import json, sys, urllib.request\nwith urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=8) as response:\n    data = json.load(response)\nsys.exit(0 if isinstance(data, dict) and data.get('status') in ('healthy', 'degraded') else 1)"]
+
+CMD ["uvicorn", "realtime_api.app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

@@ -6,7 +6,9 @@ import requests
 import urllib3
 urllib3.disable_warnings()
 
-API_KEY = "QfH6aBgNoDFOMjxbA4NIBnk1o2NeRBO1nQO21Rb9"
+API_KEY = os.environ.get("NREL_API_KEY", "").strip()
+if not API_KEY:
+    raise SystemExit("缺少 NREL_API_KEY 环境变量；请使用自己的密钥，不要写入源码。")
 
 # Test 1: socks5h:// (remote DNS)
 print("Test 1: socks5h:// (remote DNS through proxy)")

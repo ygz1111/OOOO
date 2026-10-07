@@ -26,6 +26,7 @@ import pandas as pd
 
 # SQLAlchemy async 支持 (用于认证模块的 AsyncSession)
 try:
+    from sqlalchemy.engine import URL
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
     _SQLALCHEMY_ASYNC_AVAILABLE = True
 except ImportError:
@@ -145,8 +146,25 @@ class DatabaseManager:
             await self.initialize()
         
         try:
-            loop = asyncio.get_event_loop()
-            connection = await asyncio.wrap_future(self._executor.submit(self._pool.get_connection))
+            pending = asyncio.wrap_future(self._executor.submit(self._pool.get_connection))
+            try:
+                connection = await asyncio.shield(pending)
+            except asyncio.CancelledError:
+                # A running connector call cannot be interrupted. Return the
+                # eventual connection even when its requesting coroutine left.
+                def release_abandoned(completed):
+                    try:
+                        abandoned = completed.result()
+                    except Exception:
+                        return  # result() consumes the failed acquisition
+                    released = self._executor.submit(abandoned.close)
+                    def report_release(finished):
+                        if finished.exception() is not None:
+                            logger.warning("取消请求的数据库连接释放失败: %s", finished.exception())
+                    released.add_done_callback(report_release)
+
+                pending.add_done_callback(release_abandoned)
+                raise
             logger.debug("成功从连接池获取数据库连接")
             return connection
         except Exception as e:
@@ -156,7 +174,7 @@ class DatabaseManager:
     async def release_connection(self, connection: mysql.connector.MySQLConnection) -> None:
         """释放连接到连接池"""
         try:
-            await asyncio.wrap_future(self._executor.submit(connection.close))
+            await asyncio.shield(asyncio.wrap_future(self._executor.submit(connection.close)))
             logger.debug("连接已释放回连接池")
         except Exception as e:
             logger.warning(f"释放连接时发生异常: {str(e)}")
@@ -174,24 +192,47 @@ class DatabaseManager:
     
     async def execute_sql(self, sql: str, params: Optional[tuple] = None) -> list:
         """执行SQL查询并返回结果"""
-        async with self.get_db() as connection:
-            cursor = None
-            try:
-                loop = asyncio.get_event_loop()
-                cursor = connection.cursor(dictionary=True)
-                
-                _fut = self._executor.submit(
-                    lambda: cursor.execute(sql, params) or cursor.fetchall()
-                )
-                result = await asyncio.wrap_future(_fut)
+        return await self._execute(sql, params, "query")
 
-                return result if result is not None else []
-            except Exception as e:
-                logger.error(f"SQL执行失败: {sql}, 参数: {params}, 错误: {str(e)}")
-                raise
-            finally:
-                if cursor:
+    @staticmethod
+    def _execute_sync(pool, sql: str, params, operation: str):
+        """A worker owns the entire connection lifetime, including cancellation.
+
+        Cancelling an asyncio wait cannot stop a running mysql-connector call.
+        Keeping acquisition, cursor I/O and release in this one worker prevents
+        a timed-out request from returning a still-busy connection to the pool.
+        Cursor creation/close and pooled session reset may also perform I/O.
+        """
+        connection = pool.get_connection()
+        cursor = None
+        try:
+            cursor = connection.cursor(dictionary=True) if operation == "query" else connection.cursor()
+            if operation == "many":
+                cursor.executemany(sql, params)
+                return cursor.rowcount or 0
+            cursor.execute(sql, params)
+            if operation == "insert":
+                return cursor.lastrowid
+            return cursor.fetchall() or []
+        finally:
+            try:
+                if cursor is not None:
                     cursor.close()
+            finally:
+                connection.close()
+
+    async def _execute(self, sql: str, params, operation: str):
+        if self._pool is None:
+            await self.initialize()
+        # Capture the pool before submitting; shutdown can clear self._pool
+        # while a running worker still needs to finish and release its session.
+        pool = self._pool
+        try:
+            pending = self._executor.submit(self._execute_sync, pool, sql, params, operation)
+            return await asyncio.wrap_future(pending)
+        except Exception as e:
+            logger.error("SQL执行失败 [%s]: %s; 错误: %s", operation, sql, e)
+            raise
     
     async def execute_sql_scalar(self, sql: str, params: Optional[tuple] = None) -> Any:
         """执行SQL并返回单个值"""
@@ -203,46 +244,11 @@ class DatabaseManager:
     
     async def execute_sql_insert(self, sql: str, params: Optional[tuple] = None) -> int:
         """执行INSERT语句并返回最后插入的ID"""
-        async with self.get_db() as connection:
-            cursor = None
-            try:
-                loop = asyncio.get_event_loop()
-                cursor = connection.cursor()
-                
-                await asyncio.wrap_future(self._executor.submit(lambda: cursor.execute(sql, params)))
-                insert_id = cursor.lastrowid
-                
-                return insert_id
-            except Exception as e:
-                logger.error(f"INSERT执行失败: {sql}, 参数: {params}, 错误: {str(e)}")
-                raise
-            finally:
-                if cursor:
-                    cursor.close()
+        return await self._execute(sql, params, "insert")
     
     async def execute_sql_many(self, sql: str, params_list: list) -> int:
         """批量执行SQL"""
-        async with self.get_db() as connection:
-            cursor = None
-            try:
-                loop = asyncio.get_event_loop()
-                cursor = connection.cursor()
-                
-                result = await asyncio.wrap_future(
-                    self._executor.submit(
-                        lambda: cursor.executemany(sql, params_list) or cursor.rowcount
-                    )
-                )
-                
-                count = result if result is not None else 0
-                
-                return count
-            except Exception as e:
-                logger.error(f"批量SQL执行失败: {sql}, 参数数量: {len(params_list)}, 错误: {str(e)}")
-                raise
-            finally:
-                if cursor:
-                    cursor.close()
+        return await self._execute(sql, params_list, "many")
     
     async def health_check(self) -> Dict[str, Any]:
         """数据库健康检查"""
@@ -294,7 +300,15 @@ def _init_async_engine():
 
     config = DatabaseConfig()
     # 构建异步连接 URL: mysql+aiomysql://user:password@host:port/database
-    url = f"mysql+aiomysql://{config.user}:{config.password}@{config.host}:{config.port}/{config.database}?charset={config.charset}"
+    url = URL.create(
+        "mysql+aiomysql",
+        username=config.user,
+        password=config.password,
+        host=config.host,
+        port=config.port,
+        database=config.database,
+        query={"charset": config.charset},
+    )
 
     _async_engine = create_async_engine(
         url,
@@ -351,7 +365,14 @@ async def init_database() -> None:
 
 async def close_database() -> None:
     """应用关闭时清理数据库连接"""
-    await db_manager.close()
+    global _async_engine, _AsyncSessionLocal
+    try:
+        await db_manager.close()
+    finally:
+        if _async_engine is not None:
+            await _async_engine.dispose()
+            _async_engine = None
+            _AsyncSessionLocal = None
 
 
 __all__ = [

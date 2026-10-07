@@ -40,10 +40,8 @@ dist/
 # 数据文件 (二进制 / 生成物)
 # ============================================================================
 *.pkl
-*.pth
 *.zip
 processed/
-outputs/*.pth
 outputs/
 data/
 
@@ -73,6 +71,7 @@ notebooks/
 # ============================================================================
 logs/
 *.log
+backend/cache/
 
 # ============================================================================
 # IDE
@@ -90,6 +89,10 @@ logs/
 /*.jpeg
 /*.jpg
 
+# 前端临时产物（截图/一次性 e2e 脚本，不入库）
+frontend/dash_*.png
+frontend/e2e_*.js
+
 # ============================================================================
 # 操作系统
 # ============================================================================
@@ -104,6 +107,27 @@ desktop.ini
 .coverage
 htmlcov/
 coverage.xml
+coverage_html/
+
+# 开发过程的临时渲染、打包与验收工作目录；正式证据在 docs/evidence。
+.codex_tmp/
+/.zcode/
+/MMXX/.pylibs/
+/experiments/caiso_pv/.pytest_tmp*/
+/backend/models/tensorflow_load/artifacts/
+# 论文源版本和已有数据保留本地；Git 仅保存小型训练配置以便验证。
+/Word/history/
+!/processed/
+/processed/*
+!/processed/step3_feature_info.pkl
+!/processed/step4_feature_config.pkl
+!/processed/step5_scalers.pkl
+!/processed/step5_split_info.pkl
+!/processed/step6_pipeline_config.pkl
+!/processed/tf_step5_scalers_2026.pkl
+e2e_out.txt
+frontend/*.png
+frontend/capture_*.js
 
 # ============================================================================
 # Docker

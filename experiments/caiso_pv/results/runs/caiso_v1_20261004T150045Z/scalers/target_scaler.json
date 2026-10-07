@@ -1,0 +1,17 @@
+{
+  "kind": "standard",
+  "feature_names": [
+    "solar_actual_mw"
+  ],
+  "mean": [
+    5257.159553176105
+  ],
+  "scale": [
+    6296.6418056003395
+  ],
+  "fitted_partition": "train",
+  "fitted_start": "2024-01-21T08:00:00+00:00",
+  "fitted_end": "2026-06-30T07:00:00+00:00",
+  "fitted_values": 410424,
+  "fitting_basis": "admitted training-window values; overlapping hours repeated"
+}

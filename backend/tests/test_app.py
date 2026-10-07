@@ -38,7 +38,6 @@ try:
 except ImportError:
     HAS_HTTPX = False
 
-from realtime_api.services.container import SolarEstimator
 from realtime_api.schemas import (
     LoadPredictionRequest,
     LoadPredictionResponse,
@@ -52,7 +51,6 @@ from realtime_api.openmeteo_client import OpenMeteoClient
 from realtime_api.weather_validator import WeatherDataValidator
 from realtime_api.feature_generator import FeatureGenerator
 from realtime_api.normalization_adapter import NormalizationAdapter
-from realtime_api.prediction_service import ModelInferenceService
 
 
 # ============================================================================
@@ -74,43 +72,6 @@ def make_mock_weather_data(n=200):
             shortwave_radiation=max(0, 500 * np.sin(2 * np.pi * (i % 24) / 24)),
         ))
     return points
-
-
-# ============================================================================
-# 光伏估算器测试（不需要启动服务器）
-# ============================================================================
-
-class TestSolarEstimator(unittest.TestCase):
-    """测试光伏发电估算器"""
-
-    def setUp(self):
-        self.estimator = SolarEstimator(installed_capacity_mw=500, performance_ratio=0.8)
-
-    def test_zero_radiation(self):
-        """零辐射时光伏输出为0"""
-        result = self.estimator.estimate(0)
-        self.assertEqual(result, 0.0)
-
-    def test_negative_radiation(self):
-        """负辐射时光伏输出为0"""
-        result = self.estimator.estimate(-10)
-        self.assertEqual(result, 0.0)
-
-    def test_full_sun(self):
-        """满辐射（1000 W/m²）时输出应接近装机容量×PR"""
-        result = self.estimator.estimate(1000, temperature=25)
-        self.assertAlmostEqual(result, 500 * 0.8, places=1)
-
-    def test_partial_radiation(self):
-        """部分辐射（500 W/m²）时输出减半"""
-        result = self.estimator.estimate(500, temperature=25)
-        self.assertAlmostEqual(result, 250 * 0.8, places=1)
-
-    def test_temperature_attenuation(self):
-        """高温时效率下降"""
-        cool = self.estimator.estimate(1000, temperature=25)
-        hot = self.estimator.estimate(1000, temperature=35)
-        self.assertLess(hot, cool, "高温时光伏应输出更少")
 
 
 # ============================================================================
@@ -163,3 +124,35 @@ class TestSchemaValidation(unittest.TestCase):
         ] * 11  # 超过10个
         with self.assertRaises(Exception):
             BatchPredictionRequest(requests=items)
+
+
+class TestApplicationRoutes(unittest.TestCase):
+    """检查实际应用路由，不启动生命周期、模型、数据库或外部请求。"""
+
+    @classmethod
+    def setUpClass(cls):
+        from realtime_api.app import app
+
+        cls.schema = app.openapi()
+
+    def test_openapi_excludes_removed_caiso_feature(self):
+        self.assertNotIn("caiso", json.dumps(self.schema, ensure_ascii=False).lower())
+
+    def test_iso_ne_and_supporting_routes_remain_registered(self):
+        expected_routes = {
+            "/api/prediction/load": "post",
+            "/api/prediction/overview": "get",
+            "/api/price/forecast": "get",
+            "/api/price/backtest": "get",
+            "/api/price/model-info": "get",
+            "/api/solar-generation": "get",
+            "/api/solar-generation/model-info": "get",
+            "/api/analytics/backtest/date": "get",
+            "/api/weather/current": "get",
+            "/api/system/status": "get",
+            "/api/auth/login": "post",
+            "/api/health": "get",
+        }
+        for path, method in expected_routes.items():
+            with self.subTest(path=path, method=method):
+                self.assertIn(method, self.schema["paths"].get(path, {}))

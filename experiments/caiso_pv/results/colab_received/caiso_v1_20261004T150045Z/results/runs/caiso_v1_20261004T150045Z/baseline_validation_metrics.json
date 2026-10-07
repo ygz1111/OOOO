@@ -1,0 +1,22 @@
+{
+  "lag_hours": 24,
+  "time_axis": "Physical UTC hours (not a fixed local-clock hour on DST)",
+  "train": {
+    "count": 410424,
+    "mae_mw": 614.1370717243325,
+    "rmse_mw": 1314.4704802461108,
+    "r2": 0.9564203540235546,
+    "mape_daylight_pct": 17.953227715942408,
+    "daylight_count": 212900,
+    "bias_mw": -11.420357159972172
+  },
+  "validation": {
+    "count": 16728,
+    "mae_mw": 844.1193635361583,
+    "rmse_mw": 1710.5192724478775,
+    "r2": 0.9527524618622134,
+    "mape_daylight_pct": 14.880970595856757,
+    "daylight_count": 9824,
+    "bias_mw": 0.5625528846250065
+  }
+}

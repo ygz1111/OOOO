@@ -5,7 +5,7 @@
 
 支持两个数据源（--source 选择）：
 
-1. eia（推荐，key 即时免费发放）
+1. eia（仅作独立来源存档，不作为当前模型的准确率标签）
    数据源：EIA Open Data API v2（美国能源信息署）
    端点：/v2/electricity/rto/region-data/data/（respondent=NEWE 新英格兰）
    key 注册：https://www.eia.gov/opendata/register.php （填邮箱即时发放）
@@ -13,18 +13,18 @@
 
 2. iso_ne（ISO Express 注册用户自动获得 Web Services 访问权限）
    数据源：ISO-NE Web Services API v1.1
-   端点：GET /fiveminutesystemload/day/{YYYYMMDD}（5分钟真实系统负荷，
-         按小时平均为整点实际负荷，东部时区与预测对齐）
+   端点：GET /fiveminuteestimatedzonalload/day/{YYYYMMDD}
+   八区小时均值求和，以小时结束标记，仅保存完整12次采样的小时。
    认证：HTTP Basic（用户名 = ISO Express 注册邮箱，密码 = ISO Express 密码）
    环境变量：ISO_NE_USERNAME（邮箱）+ ISO_NE_PASSWORD（密码）
 
 行为：
   1. 拉取指定日期（默认昨天）每小时实际系统负荷
   2. 写入 actual_load_data 表（INSERT IGNORE 幂等，data_source 标记来源）
-  3. 回填 load_predictions.actual_load_mw（与 target_timestamp 匹配）
+  3. 新口径另行存档，查询时对齐；不覆盖旧记录，不把 EIA 回填成当前模型标签
 
 用法：
-  # EIA（推荐）
+  # EIA（独立来源存档）
   export EIA_API_KEY=你的key
   cd backend && python scripts/fetch_iso_ne_load.py --source eia [YYYYMMDD]
 
@@ -37,7 +37,8 @@ import os
 import sys
 import argparse
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import requests
 from dotenv import load_dotenv
@@ -48,7 +49,8 @@ load_dotenv(os.path.join(BACKEND_DIR, "..", ".env"))
 sys.path.insert(0, BACKEND_DIR)
 from realtime_api.crud import ActualLoadDataCRUD
 from realtime_api.database import db_manager
-from realtime_api.utils.iso_ne import fetch_hourly_actual_load
+from realtime_api.utils.iso_ne import fetch_hourly_actual_load, persist_actual_load
+from realtime_api.utils.iso_ne_intervals import ACTUAL_SOURCE
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger("fetch_actual_load")
@@ -78,18 +80,24 @@ def fetch_eia(day: date, api_key: str) -> list:
     data = resp.json().get("response", {}).get("data", [])
 
     rows = []
+    # EIA hourly period 为 UTC 整点；统一转为东部墙钟 naive（与 ISO-NE 路径口径一致）
+    east = ZoneInfo("America/New_York")
     for it in data:
-        period = it.get("period")  # "2026-07-30T01"
+        period = it.get("period")  # "2026-07-30T01" (UTC)
         value = it.get("value")
         if period is None or value is None:
             continue
-        ts = datetime.strptime(period, "%Y-%m-%dT%H")
+        ts_utc = datetime.strptime(period, "%Y-%m-%dT%H").replace(tzinfo=timezone.utc)
+        ts = ts_utc.astimezone(east).replace(tzinfo=None)
         rows.append((ts, float(value)))
     return rows
 
 
 async def persist(rows, data_source: str, region: str = "NewEngland"):
-    """写入 actual_load_data + 回填 load_predictions.actual_load_mw"""
+    """按口径隔离存储；其他来源不再回填当前模型的误差标签。"""
+    if data_source == ACTUAL_SOURCE:
+        result = await persist_actual_load(rows)
+        return result["inserted"]
     await db_manager.initialize()
     inserted = 0
     for ts, mw in rows:
@@ -102,26 +110,15 @@ async def persist(rows, data_source: str, region: str = "NewEngland"):
         except Exception as e:
             logger.warning(f"写入失败 {ts}: {e}")
 
-    backfilled = 0
-    for ts, mw in rows:
-        try:
-            await db_manager.execute_sql(
-                """UPDATE load_predictions SET actual_load_mw = %s
-                   WHERE target_timestamp = %s AND actual_load_mw IS NULL""",
-                (mw, ts),
-            )
-            backfilled += 1
-        except Exception as e:
-            logger.warning(f"回填失败 {ts}: {e}")
-    logger.info(f"写入 actual_load_data: {inserted} 条；回填语句执行 {backfilled} 条")
+    logger.info(f"写入历史存档: {inserted} 条；未回填当前模型标签")
     return inserted
 
 
 def main():
     parser = argparse.ArgumentParser(description="拉取新英格兰实际负荷")
     parser.add_argument("day", nargs="?", default=None, help="日期 YYYYMMDD（默认昨天）")
-    parser.add_argument("--source", choices=["eia", "iso_ne"], default="eia",
-                        help="数据源（默认 eia，key 即时免费）")
+    parser.add_argument("--source", choices=["eia", "iso_ne"], default="iso_ne",
+                        help="默认 iso_ne，与当前模型的八区负荷/小时结束口径一致；eia 仅存档")
     args = parser.parse_args()
 
     if args.source == "eia":
@@ -144,10 +141,10 @@ def main():
                   "     ISO_NE_PASSWORD=你的ISOExpress密码\n")
             sys.exit(1)
         fetch = lambda d: fetch_hourly_actual_load(d, username, password)
-        data_source = "iso_ne"
+        data_source = ACTUAL_SOURCE
 
     day = datetime.strptime(args.day, "%Y%m%d").date() if args.day \
-        else date.today() - timedelta(days=1)
+        else datetime.now(ZoneInfo("America/New_York")).date() - timedelta(days=1)
 
     logger.info(f"[{args.source}] 拉取 {day} 的实际负荷...")
     rows = fetch(day)

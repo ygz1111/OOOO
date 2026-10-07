@@ -2,6 +2,7 @@
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
 import ssl
+import os
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
@@ -24,7 +25,9 @@ class CustomSSLAdapter(HTTPAdapter):
         return super().init_poolmanager(*args, **kwargs)
 
 
-API_KEY = "QfH6aBgNoDFOMjxbA4NIBnk1o2NeRBO1nQO21Rb9"
+API_KEY = os.environ.get("NREL_API_KEY", "").strip()
+if not API_KEY:
+    raise SystemExit("缺少 NREL_API_KEY 环境变量；请使用自己的密钥，不要写入源码。")
 proxies = {"http": "http://127.0.0.1:7897", "https": "http://127.0.0.1:7897"}
 
 # Test 1: Custom SSL adapter

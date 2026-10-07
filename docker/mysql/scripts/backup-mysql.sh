@@ -30,11 +30,10 @@ log_warn() {
 }
 
 # 配置环境变量
-export MYSQL_HOST="localhost"
-export MYSQL_PORT="3306"
-export MYSQL_USER="backup_user"
-export MYSQL_PASSWORD="backup_password"
-export MYSQL_DATABASE="load_prediction_db"
+export MYSQL_HOST="${MYSQL_HOST:-localhost}"
+export MYSQL_PORT="${MYSQL_PORT:-3306}"
+export MYSQL_USER="${MYSQL_USER:-backup_user}"
+export MYSQL_DATABASE="${MYSQL_DATABASE:-load_prediction_db}"
 
 # 备份配置
 export BACKUP_DIR="/var/lib/mysql-backup"
@@ -50,6 +49,9 @@ if [ -f "/etc/mysql/backup.conf" ]; then
     source "/etc/mysql/backup.conf"
     log_info "已加载配置文件: /etc/mysql/backup.conf"
 fi
+
+: "${MYSQL_PASSWORD:?请通过环境变量或 /etc/mysql/backup.conf 配置 MYSQL_PASSWORD}"
+export MYSQL_PASSWORD
 
 # 创建备份目录
 mkdir -p "$BACKUP_DIR/full"

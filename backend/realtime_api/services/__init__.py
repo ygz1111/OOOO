@@ -3,6 +3,5 @@
 
 提供核心业务逻辑：
 - container: 全局服务容器 (ServiceContainer)
-- prediction_pipeline: 预测管线 (run_prediction_pipeline)
-- estimators: 光伏/风电估算器
+- prediction_pipeline: TensorFlow 统一预测管线
 """

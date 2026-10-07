@@ -14,6 +14,7 @@
 
 import asyncio
 import logging
+import time
 
 from realtime_api.crud import (
     SystemMetricsCRUD,
@@ -128,17 +129,30 @@ async def _periodic_actual_load_sync():
 
     需要 .env 配置 ISO_NE_USERNAME / ISO_NE_PASSWORD（ISO Express 凭据）；
     未配置时静默跳过（不影响其他任务）。
+
+    日期按新英格兰时区 (America/New_York) 计算：服务器可能运行在
+    其他时区（如 CST），直接 date.today() 在 ET 下午时段会得到"明天"，
+    导致当天实际负荷永远不同步。
     """
-    from datetime import date, timedelta
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
 
     from realtime_api.utils.iso_ne import sync_actual_load_for_days
 
+    ET_TZ = ZoneInfo("America/New_York")
+
+    last_full_sync = None
     while True:
         try:
-            today = date.today()
+            today = datetime.now(ET_TZ).date()
+            # 启动及每六小时修订历史；平时只同步昨天和今天，避免每轮重复14天。
+            full_sync = last_full_sync is None or time.monotonic() - last_full_sync >= 21600
+            days = 14 if full_sync else 2
             result = await sync_actual_load_for_days(
-                [today - timedelta(days=1), today]
+                [today - timedelta(days=i) for i in range(days - 1, -1, -1)]
             )
+            if full_sync and result["days"] == days:
+                last_full_sync = time.monotonic()
             if result["days"]:
                 logger.info(
                     f"实际负荷同步完成: {result['days']} 天, "
@@ -165,7 +179,6 @@ def start_background_tasks() -> list:
         asyncio.create_task(_periodic_performance_alerts()),
         asyncio.create_task(_periodic_actual_load_sync()),
     ]
-    logger.info("✅ 定期后台任务已启动 (系统监控/性能预警/实际负荷同步)")
     logger.info("✅ 定期后台任务已启动 (系统监控/性能预警/实际负荷同步)")
     return _bg_tasks
 

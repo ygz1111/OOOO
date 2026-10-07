@@ -20,7 +20,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from realtime_api.database import get_db_async
-from realtime_api.crud.auth_crud import AuthCRUD
+from realtime_api.crud.auth_crud import AuthCRUD, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS
 from realtime_api.schemas.auth import (
     UserCreate,
     UserResponse,
@@ -144,25 +144,23 @@ async def login(
         # 更新最后登录时间
         await auth_crud.update_last_login(user.id)
         
-        # 生成令牌
-        access_token = auth_crud.create_access_token(user.id, user.username)
+        # 会话ID先于令牌生成，避免把JWT误当作数据库中的UUID。
+        import uuid
+        session_id = str(uuid.uuid4())
+        access_token = auth_crud.create_access_token(user.id, user.username, session_id=session_id)
         
         refresh_token = None
         # 如果要求记住登录，则生成Refresh Token
         if login_request.remember_me:
-            refresh_token = auth_crud.create_refresh_token(user.id, user.username)
-        
-        # 生成会话ID
-        import uuid
-        session_id = str(uuid.uuid4())
+            refresh_token = auth_crud.create_refresh_token(user.id, user.username, session_id=session_id)
         
         # 存储会话
         if login_request.remember_me and refresh_token:
-            refresh_expires = datetime.utcnow() + timedelta(days=7)
+            refresh_expires = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
         else:
-            refresh_expires = datetime.utcnow() + timedelta(minutes=30)
+            refresh_expires = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         
-        await auth_crud.store_user_session(
+        stored = await auth_crud.store_user_session(
             user_id=user.id,
             token=access_token,
             refresh_token=refresh_token,
@@ -172,6 +170,8 @@ async def login(
             platform=request.headers.get('platform', 'web'),
             expires_at=refresh_expires
         )
+        if not stored:
+            raise HTTPException(status_code=503, detail="登录会话暂时无法保存，请稍后重试")
         
         # 记录成功登录
         await auth_crud.log_login_history(
@@ -225,8 +225,13 @@ async def refresh_access_token(
                 detail="无效的Refresh Token"
             )
         
-        user_id = int(token_data.get('sub'))
-        username = token_data.get('username')
+        try:
+            user_id = int(token_data.get('sub'))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=401, detail="无效的Refresh Token")
+        session = await auth_crud.get_active_session(refresh_token, user_id, "refresh")
+        if session is None:
+            raise HTTPException(status_code=401, detail="登录会话已过期或注销，请重新登录")
         
         # 获取用户信息
         user = await auth_crud.get_user_by_id(user_id)
@@ -237,7 +242,10 @@ async def refresh_access_token(
             )
         
         # 生成新的Access Token
-        new_access_token = auth_crud.create_access_token(user_id, username)
+        new_access_token = auth_crud.create_access_token(user_id, user.username, session_id=session.session_id)
+        updated = await auth_crud.update_session_access_token(session.session_id, user_id, new_access_token)
+        if not updated:
+            raise HTTPException(status_code=401, detail="登录会话已过期或注销，请重新登录")
         
         # 可选：生成新的Refresh Token(刷新刷新令牌)
         # 这里保持原refresh token，可以扩展实现刷新token轮转
@@ -253,9 +261,9 @@ async def refresh_access_token(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"刷新令牌失败: {e}")
+        logger.error("刷新令牌失败: %s", type(e).__name__)
         raise HTTPException(
-            status_code=500,
+            status_code=503,
             detail="令牌刷新失败"
         )
 
@@ -275,18 +283,18 @@ async def logout(
     try:
         auth_crud = AuthCRUD(db)
         
-        # 获取会话ID
-        auth_header = request.headers.get('Authorization', '')
-        session_id = auth_header.replace('Bearer ', '') if auth_header.startswith('Bearer ') else None
-        
-        if session_id:
-            # 注销当前会话
-            await auth_crud.revoke_session(session_id)
+        session_id = getattr(request.state, 'session_id', None)
+        if not session_id:
+            raise HTTPException(status_code=401, detail="无效的登录会话")
+        if not await auth_crud.revoke_session(session_id):
+            raise HTTPException(status_code=503, detail="会话注销暂时失败，请重试")
         
         logger.info(f"用户登出: {current_user.username}")
         
         return {"message": "登出成功"}
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"登出异常: {e}")
         raise HTTPException(
@@ -310,17 +318,20 @@ async def logout_all_devices(
     try:
         auth_crud = AuthCRUD(db)
         
-        # 获取当前会话ID
-        auth_header = request.headers.get('Authorization', '')
-        current_session_id = auth_header.replace('Bearer ', '') if auth_header.startswith('Bearer ') else None
+        current_session_id = getattr(request.state, 'session_id', None)
+        if not current_session_id:
+            raise HTTPException(status_code=401, detail="无效的登录会话")
         
         # 注销所有会话(保留当前)
-        await auth_crud.revoke_all_user_sessions(current_user.id, current_session_id)
+        if not await auth_crud.revoke_all_user_sessions(current_user.id, current_session_id):
+            raise HTTPException(status_code=503, detail="会话注销暂时失败，请重试")
         
         logger.info(f"用户批量登出: {current_user.username}")
         
         return {"message": "已在所有设备上登出(当前设备保持登录)"}
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"批量登出异常: {e}")
         raise HTTPException(
@@ -435,7 +446,7 @@ async def get_user_sessions(
         from sqlalchemy import text as sql_text
         query = sql_text("""
             SELECT * FROM active_sessions_view 
-            WHERE username = :username AND expires_at > NOW()
+            WHERE username = :username AND expires_at > UTC_TIMESTAMP()
         """)
         result = await db.execute(query, {'username': current_user.username})
         

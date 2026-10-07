@@ -95,27 +95,11 @@ const WeatherMap: React.FC<WeatherMapProps> = ({
           role="img"
           aria-label="新英格兰地区气象站点分布图"
         >
-          <defs>
-            {/* 地图区域渐变 */}
-            <linearGradient id="mapBg" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#111827" stopOpacity={0.9} />
-              <stop offset="100%" stopColor="#0B0F19" stopOpacity={0.7} />
-            </linearGradient>
-            {/* 选中站点脉冲动画 */}
-            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="3" result="coloredBlur" />
-              <feMerge>
-                <feMergeNode in="coloredBlur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-
           {/* 背景海洋 */}
-          <rect x="0" y="0" width={SVG_W} height={SVG_H} fill="#0B0F19" rx="12" />
+          <rect x="0" y="0" width={SVG_W} height={SVG_H} fill="var(--map-ocean)" rx="4" />
 
           {/* 经纬度网格线 */}
-          <g stroke="#1F2937" strokeWidth="0.5" opacity="0.5">
+          <g stroke="var(--map-grid)" strokeWidth="0.5" opacity="0.7">
             {/* 经度线 (每1度) */}
             {Array.from({ length: 9 }).map((_, i) => {
               const lon = MIN_LON + i
@@ -133,8 +117,8 @@ const WeatherMap: React.FC<WeatherMapProps> = ({
           {/* 新英格兰陆地轮廓 */}
           <path
             d={NEW_ENGLAND_PATH}
-            fill="url(#mapBg)"
-            stroke="#374151"
+            fill="var(--map-land)"
+            stroke="var(--map-border)"
             strokeWidth="1.5"
             strokeLinejoin="round"
           />
@@ -145,7 +129,7 @@ const WeatherMap: React.FC<WeatherMapProps> = ({
               key={s.label}
               x={s.x}
               y={s.y}
-              fill="#475569"
+              fill="var(--map-text)"
               fontSize="11"
               fontWeight="600"
               textAnchor="middle"
@@ -178,7 +162,7 @@ const WeatherMap: React.FC<WeatherMapProps> = ({
                   }
                 }}
               >
-                {/* 选中站点脉冲环 */}
+                {/* 选中站点范围 */}
                 {isSelected && (
                   <circle
                     cx={cx}
@@ -188,20 +172,7 @@ const WeatherMap: React.FC<WeatherMapProps> = ({
                     stroke={tempColor}
                     strokeWidth="2"
                     opacity="0.4"
-                  >
-                    <animate
-                      attributeName="r"
-                      values={`${radius + 4};${radius + 14};${radius + 4}`}
-                      dur="2s"
-                      repeatCount="indefinite"
-                    />
-                    <animate
-                      attributeName="opacity"
-                      values="0.5;0;0.5"
-                      dur="2s"
-                      repeatCount="indefinite"
-                    />
-                  </circle>
+                  />
                 )}
 
                 {/* 站点光晕 */}
@@ -219,9 +190,8 @@ const WeatherMap: React.FC<WeatherMapProps> = ({
                   cy={cy}
                   r={radius}
                   fill={tempColor}
-                  stroke={isSelected ? '#ffffff' : '#111827'}
+                  stroke="var(--surface-raised)"
                   strokeWidth={isSelected ? 2.5 : 1.5}
-                  filter={isSelected ? 'url(#glow)' : undefined}
                   className="transition-all duration-200"
                 />
 
@@ -229,7 +199,7 @@ const WeatherMap: React.FC<WeatherMapProps> = ({
                 <text
                   x={cx}
                   y={cy - radius - 6}
-                  fill={isSelected ? '#ffffff' : '#cbd5e1'}
+                  fill="var(--map-text)"
                   fontSize="11"
                   fontWeight={isSelected ? 700 : 500}
                   textAnchor="middle"
@@ -243,7 +213,7 @@ const WeatherMap: React.FC<WeatherMapProps> = ({
                   <text
                     x={cx}
                     y={cy + 4}
-                    fill="#ffffff"
+                    fill="var(--map-temperature-text)"
                     fontSize="10"
                     fontWeight="700"
                     textAnchor="middle"
@@ -260,7 +230,7 @@ const WeatherMap: React.FC<WeatherMapProps> = ({
 
       {/* 温度色标图例 */}
       <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="text-xs text-dark-400 font-medium mr-1">温度色标:</span>
+        <span className="text-xs text-ink-muted font-medium mr-1">温度色标:</span>
         {TEMP_LEGEND.map((item) => (
           <div key={item.label} className="flex items-center gap-1.5">
             <span
@@ -268,7 +238,7 @@ const WeatherMap: React.FC<WeatherMapProps> = ({
               style={{ backgroundColor: item.color }}
               aria-hidden="true"
             />
-            <span className="text-xs text-dark-300 tabular-nums">{item.label}</span>
+            <span className="text-xs text-ink tabular-nums">{item.label}</span>
           </div>
         ))}
       </div>

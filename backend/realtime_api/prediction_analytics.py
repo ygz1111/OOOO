@@ -70,9 +70,16 @@ class PredictionComparator:
                 continue
                 
             # 提取预测值和实际值
+            # 2026-08 修复：按行成对过滤（同时含预测值与实际值），
+            # 此前 predictions[:len(actuals)] 按长度截断，中间缺 actual 时错位配对。
             predictions = [p.get('load_forecast_mw', 0) for p in preds]
-            actuals = [p.get('actual_load_mw', 0) for p in preds if 'actual_load_mw' in p]
-            
+            paired = [
+                (p.get('load_forecast_mw'), p.get('actual_load_mw'))
+                for p in preds
+                if p.get('load_forecast_mw') is not None and p.get('actual_load_mw') is not None
+            ]
+            actuals = [a for _, a in paired]
+
             if len(actuals) == 0:
                 # 如果没有实际值，只计算预测统计
                 model_stats[model_type] = {
@@ -84,8 +91,8 @@ class PredictionComparator:
                 }
             else:
                 # 计算预测准确性指标
-                predictions = predictions[:len(actuals)]  # 对齐长度
-                
+                predictions = [p for p, _ in paired]
+
                 mae = np.mean(np.abs(np.array(actuals) - np.array(predictions)))
                 rmse = np.sqrt(np.mean((np.array(actuals) - np.array(predictions)) ** 2))
                 
@@ -270,7 +277,8 @@ class PredictionComparator:
             prediction = pred.get('load_forecast_mw', 0)
             actual = pred.get('actual_load_mw', 0)
             
-            error = actual - prediction
+            # 全站统一：正误差表示预测高于实际。
+            error = prediction - actual
             errors.append(error)
             
             if abs(actual) > 1e-6:

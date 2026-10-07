@@ -1,139 +1,176 @@
-import React, { useMemo, useState, useEffect, useCallback } from 'react'
+import React, { useMemo } from 'react'
 import { useApi } from '../contexts/ApiContext'
 import MetricCard from '../components/MetricCard'
+import { useForecastClock } from '../hooks/useForecastClock'
+import { predictionHealth } from '../utils/predictionHealth'
 import LoadForecastChart from '../components/LoadForecastChart'
-import apiService from '../services/api'
-import { LoadOverviewData } from '../types'
 import { MetricCardSkeleton, ErrorBanner } from '../components/Skeleton'
+import { formatEastern, formatEasternISO, parseEasternISO, ET_FULL, ET_TIME, ET_TIME_HM } from '../utils/time'
 import {
   TrendingUp,
   Zap,
   Sun,
-  Wind,
   Activity,
   Clock,
   Cpu,
   AlertTriangle,
   RefreshCw,
+  Layers,
 } from 'lucide-react'
 
-// ── 刷新指示器组件 ──
+// 显示数据获取时间；预测原生成时间另列展示。
 const RefreshIndicator: React.FC<{ isRefreshing: boolean; lastUpdated: number | null }> = ({
   isRefreshing,
   lastUpdated,
 }) => {
   const timeStr = lastUpdated
-    ? new Date(lastUpdated).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    ? formatEastern(new Date(lastUpdated), ET_TIME)
     : null
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ background: 'rgba(0, 240, 255, 0.03)', border: '1px solid rgba(0, 240, 255, 0.06)' }}>
+    <div className="overview-sync-state" role="status">
       <RefreshCw
-        className={`w-3.5 h-3.5 transition-all duration-300 ${
+        className={`w-3.5 h-3.5 text-primary-600 ${
           isRefreshing ? 'animate-spin' : ''
         }`}
-        style={{ color: isRefreshing ? '#00F0FF' : 'rgba(0, 240, 255, 0.3)' }}
         aria-hidden="true"
       />
-      <span className="text-xs tabular-nums font-mono" style={{ color: 'rgba(0, 240, 255, 0.3)' }}>
-        {isRefreshing ? '刷新中...' : timeStr ? `已更新 ${timeStr}` : '等待数据'}
+      <span className="text-xs tabular-nums text-ink">
+        {isRefreshing ? '同步数据中…' : timeStr ? `最近同步 ${timeStr} ET` : '等待数据就绪'}
       </span>
     </div>
   )
 }
 
 const Dashboard: React.FC = () => {
-  const { prediction, weather, systemStatus, isLoading, isInitialLoad, lastUpdated, errors } = useApi()
-
-  // 24h 负荷预测总览（历史回测验证 + 未来预测 + 当前实际）
-  const [overview, setOverview] = useState<LoadOverviewData | null>(null)
-  const [overviewError, setOverviewError] = useState<string | null>(null)
-  const [overviewLoading, setOverviewLoading] = useState(false)
-  const loadOverview = useCallback(async () => {
-    setOverviewLoading(true)
-    try {
-      const res = await apiService.getLoadOverview()
-      setOverview(res.data)
-      setOverviewError(null)
-    } catch (e) {
-      setOverviewError(e instanceof Error ? e.message : '加载预测总览失败')
-    } finally {
-      setOverviewLoading(false)
-    }
-  }, [])
-  useEffect(() => {
-    loadOverview()
-  }, [loadOverview])
+  const { prediction, weather, systemStatus, overview, loadOverview, isLoading, isInitialLoad, lastUpdated, errors, isConnecting } = useApi()
+  const overviewError = errors.overview
+  const overviewLoading = isLoading.overview
+  const nowMs = useForecastClock()
+  const health = predictionHealth(errors.systemStatus ? null : systemStatus, prediction, errors.prediction, nowMs)
 
   // 计算关键指标 — useMemo 避免每次渲染都重新计算
   const metrics = useMemo(() => {
-    if (!prediction?.predictions?.length) {
-      return {
-        currentLoad: 0,
-        pvGeneration: 0,
-        windGeneration: 0,
-        netLoad: 0,
-        avgLoad24h: 0,
-      }
-    }
+    const actualCurrent = overview?.current?.actual_load_mw ?? null
+    const forecastRows = prediction?.predictions ?? []
+    // 预测数组是完整的日前窗口（通常为 01:00 ET → 次日 00:00 ET），
+    // 第 0 项并不代表打开页面时的当前小时。选择离当前真实时刻最近的目标小时。
+    const forecastCurrent = forecastRows.find(row => {
+      const end = parseEasternISO(row.timestamp).getTime()
+      return end > nowMs && end - nowMs <= 3_600_000
+    })
+    const actualTimeMs = overview?.current?.time
+      ? parseEasternISO(overview.current.time).getTime()
+      : Number.NaN
+    const forecastTimeMs = forecastCurrent?.timestamp
+      ? parseEasternISO(forecastCurrent.timestamp).getTime()
+      : Number.NaN
+    // ISO-NE 实况可能因日前完整窗口的锚点而回退。超过两小时便不能称为“当前实况”。
+    const actualIsFresh = actualCurrent != null
+      && Number.isFinite(actualTimeMs)
+      && Math.abs(actualTimeMs - nowMs) <= 2 * 60 * 60 * 1000
+    // 日前窗口不一定覆盖打开页面的当前小时。超过 90 分钟的最近点不可冒充“当前预测”。
+    const forecastIsCurrent = Number.isFinite(forecastTimeMs)
+      && Math.abs(forecastTimeMs - nowMs) <= 90 * 60 * 1000
 
-    const current = prediction.predictions[0]
-    const avg24h =
-      prediction.predictions.reduce((sum, p) => sum + p.load_forecast_mw, 0) /
-      prediction.predictions.length
+    const fallback = {
+      currentLoad: null as number | null,
+      pvGeneration: null as number | null,
+      netLoad: null as number | null,
+      avgLoad24h: null as number | null,
+      currentIsActual: false,
+      currentTime: null as string | null,
+      pvTime: null as string | null,
+    }
+    if (!forecastCurrent && actualCurrent == null) return fallback
+
+    const avg24h = prediction?.predictions?.length
+      ? prediction.predictions.reduce((sum, p) => sum + p.load_forecast_mw, 0) /
+        prediction.predictions.length
+      : null
+
+    const currentLoad = actualIsFresh
+      ? actualCurrent
+      : forecastIsCurrent ? forecastCurrent?.load_forecast_mw ?? null : null
+    const currentTime = actualIsFresh
+      ? overview?.current?.time ?? null
+      : forecastIsCurrent ? forecastCurrent?.timestamp ?? null : null
+    const pvGeneration = forecastIsCurrent ? forecastCurrent?.pv_estimation_mw ?? null : null
+    // 净负荷采用同一条预测记录，不能用上一小时实况减去下一小时光伏。
+    const netLoad = forecastIsCurrent ? forecastCurrent?.net_load_mw ?? null : null
 
     return {
-      currentLoad: current.load_forecast_mw,
-      pvGeneration: current.pv_estimation_mw,
-      windGeneration: current.wind_estimation_mw ?? 0,
-      netLoad: current.net_load_mw,
+      currentLoad,
+      pvGeneration,
+      netLoad,
       avgLoad24h: avg24h,
+      currentIsActual: actualIsFresh,
+      currentTime,
+      pvTime: forecastIsCurrent ? forecastCurrent?.timestamp ?? null : null,
     }
-  }, [prediction])
+  }, [prediction, overview, nowMs])
 
-  // 是否有任意数据正在刷新 — useMemo 稳定引用
+  // 是否有任意数据正在刷新
   const isAnyRefreshing = useMemo(
-    () => isLoading.prediction || isLoading.weather || isLoading.systemStatus,
-    [isLoading.prediction, isLoading.weather, isLoading.systemStatus]
+    () => Object.values(isLoading).some(Boolean),
+    [isLoading]
   )
 
-  // 错误状态显示 — useMemo 稳定引用
+  // 错误状态显示
   const hasErrors = useMemo(
     () => Object.values(errors).some((error) => error !== null),
     [errors]
   )
 
   return (
-    <div className="space-y-6 animate-fade-in relative">
-      {/* 页面标题和状态 — 居中 */}
-      <div className="page-header-centered relative z-10">
-        <h1 data-text="系统总览">系统总览</h1>
-        <p>实时监控智能电网负荷预测系统运行状态</p>
-        <div className="header-decoration" />
-      </div>
-
-      <div className="flex items-center justify-center gap-3 relative z-10 flex-wrap">
-          {/* 刷新指示器 */}
+    <div className="dashboard-page space-y-4 relative">
+      <section className="overview-hero" aria-labelledby="overview-heading">
+        <div className="overview-hero-main">
+          <div className="min-w-0">
+            <p className="overview-eyebrow">ISO-NE · 新英格兰区域</p>
+            <h1 id="overview-heading">运行概览</h1>
+            <p className="overview-description">负荷、光伏预测及数据服务状态</p>
+          </div>
+          <div className="overview-data-status">
+            <span className="overview-status-label">预测数据状态</span>
+            <strong className={health.color}>
+              <span className={`status-indicator ${health.indicator}`} aria-hidden="true" />
+              {health.text}
+            </strong>
+          </div>
+        </div>
+        <div className="overview-runtime-strip">
           <RefreshIndicator
             isRefreshing={isAnyRefreshing}
-            lastUpdated={
-              lastUpdated.prediction || lastUpdated.weather || lastUpdated.systemStatus
-            }
+            lastUpdated={lastUpdated.prediction || lastUpdated.weather || lastUpdated.systemStatus}
           />
-
-          {hasErrors && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg animate-slide-up" style={{ background: 'rgba(255, 45, 149, 0.1)', border: '1px solid rgba(255, 45, 149, 0.2)' }}>
-              <AlertTriangle className="w-4 h-4" style={{ color: '#FF2D95' }} aria-hidden="true" />
-              <span className="text-sm" style={{ color: '#FF2D95' }}>数据加载异常</span>
+          <div className="overview-runtime-item">
+            <Cpu className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>计算设备</span>
+            <strong>{systemStatus?.device ? systemStatus.device.toUpperCase() : '连接中'}</strong>
+          </div>
+          <div className="overview-runtime-item">
+            <Clock className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>美国东部时间（ET）</span>
+          </div>
+          {isConnecting ? (
+            <div className="overview-sync-notice text-primary-600" role="status">
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+              <span>正在连接数据服务…</span>
+            </div>
+          ) : hasErrors && (
+            <div className="overview-sync-notice text-rose-700" role="status">
+              <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>部分数据源正在重试同步</span>
             </div>
           )}
-      </div>
+        </div>
+      </section>
 
-      {/* 核心指标卡片 — 仅首次加载显示骨架屏，刷新时保留旧数据 */}
-      <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 transition-opacity duration-300 ${isLoading.prediction && prediction ? 'opacity-80' : 'opacity-100'} relative z-10`}>
+      {/* 当前小时数据与本次计算耗时 */}
+      <div className={`metrics-grid overview-metrics grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 ${isLoading.prediction && prediction ? 'opacity-85' : 'opacity-100'}`}>
         {isInitialLoad.prediction && isLoading.prediction ? (
           <>
-            <MetricCardSkeleton />
             <MetricCardSkeleton />
             <MetricCardSkeleton />
             <MetricCardSkeleton />
@@ -141,230 +178,148 @@ const Dashboard: React.FC = () => {
           </>
         ) : (
           <>
-            <div className="stagger-item stagger-1">
-            <MetricCard
-              title="当前负荷预测"
-              value={metrics.currentLoad.toFixed(0)}
-              unit="MW"
-              icon={<Zap className="w-6 h-6" style={{ color: '#00F0FF' }} />}
-              trend="up"
-              trendValue={`比24h平均${metrics.currentLoad > metrics.avgLoad24h ? '高' : '低'} ${Math.abs(((metrics.currentLoad - metrics.avgLoad24h) / metrics.avgLoad24h) * 100).toFixed(1)}%`}
-            />
+            <div>
+              <MetricCard
+                title={metrics.currentIsActual ? '最近实测负荷 (ISO-NE)' : '当前小时负荷预测'}
+                value={metrics.currentLoad == null ? '--' : metrics.currentLoad.toFixed(0)}
+                unit={metrics.currentLoad == null ? '' : 'MW'}
+                icon={<Zap className="w-5 h-5 text-primary-600" />}
+                trend="up"
+                trendValue={metrics.currentIsActual
+                  ? `ISO-NE · ${metrics.currentTime ? formatEasternISO(metrics.currentTime, ET_TIME_HM) : ''} ET`
+                  : metrics.currentLoad != null && metrics.avgLoad24h != null && metrics.avgLoad24h > 0
+                    ? `比24h均值${metrics.currentLoad > metrics.avgLoad24h ? '高' : '低'} ${Math.abs(((metrics.currentLoad - metrics.avgLoad24h) / metrics.avgLoad24h) * 100).toFixed(1)}%`
+                    : '等待当前小时数据'}
+              />
             </div>
 
-            <div className="stagger-item stagger-2">
-            <MetricCard
-              title="光伏发电估算"
-              value={metrics.pvGeneration.toFixed(1)}
-              unit="MW"
-              icon={<Sun className="w-6 h-6" style={{ color: '#00FF88' }} />}
-              trend="stable"
-              trendValue="实时估算"
-            />
+            <div>
+              <MetricCard
+                title="当前小时光伏预测"
+                value={metrics.pvGeneration == null ? '--' : metrics.pvGeneration.toFixed(1)}
+                unit={metrics.pvGeneration == null ? '' : 'MW'}
+                icon={<Sun className="w-5 h-5 text-primary-600" />}
+                trend="stable"
+                trendValue={metrics.pvTime ? `${formatEasternISO(metrics.pvTime, ET_TIME_HM)} ET` : '等待当前小时数据'}
+              />
             </div>
 
-            <div className="stagger-item stagger-3">
-            <MetricCard
-              title="风电发电估算"
-              value={metrics.windGeneration.toFixed(1)}
-              unit="MW"
-              icon={<Wind className="w-6 h-6" style={{ color: '#00D4FF' }} />}
-              trend="stable"
-              trendValue="物理模型估算"
-            />
+            <div>
+              <MetricCard
+                title="预测净负荷"
+                value={metrics.netLoad == null ? '--' : metrics.netLoad.toFixed(0)}
+                unit={metrics.netLoad == null ? '' : 'MW'}
+                icon={<TrendingUp className="w-5 h-5 text-primary-600" />}
+                trend="down"
+                trendValue={metrics.netLoad == null ? '等待同一时点负荷与光伏预测' : `负荷预测 − 光伏预测 · ${metrics.pvTime ? formatEasternISO(metrics.pvTime, ET_TIME_HM) : ''} ET`}
+              />
             </div>
 
-            <div className="stagger-item stagger-4">
-            <MetricCard
-              title="净负荷"
-              value={metrics.netLoad.toFixed(0)}
-              unit="MW"
-              icon={<TrendingUp className="w-6 h-6" style={{ color: '#FFE600' }} />}
-              trend="down"
-              trendValue="含光伏+风电"
-            />
-            </div>
-
-            <div className="stagger-item stagger-5">
-            <MetricCard
-              title="系统响应时间"
-              value={prediction?.inference_time_ms?.toFixed(0) || '0'}
-              unit="ms"
-              icon={<Activity className="w-6 h-6" style={{ color: '#B026FF' }} />}
-              trend="stable"
-              trendValue="实时预测"
-            />
+            <div>
+              <MetricCard
+                title="模型计算耗时"
+                value={prediction?.inference_time_ms == null ? '--' : prediction.inference_time_ms.toFixed(0)}
+                unit={prediction?.inference_time_ms == null ? '' : 'ms'}
+                icon={<Activity className="w-5 h-5 text-primary-600" />}
+                trend="stable"
+                trendValue="本次模型推理耗时"
+              />
             </div>
           </>
         )}
       </div>
 
-      {/* 主要内容区域 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 负荷预测图表 - 主要区域 */}
-        <div className="lg:col-span-2">
-          <div className="card h-full">
-            <div className="card-header">
-              <div className="card-header-icon" style={{ background: 'rgba(0, 240, 255, 0.06)' }}>
-                <TrendingUp className="w-5 h-5" style={{ color: '#00F0FF' }} aria-hidden="true" />
-              </div>
-              <div className="min-w-0">
-                <h2 className="card-header-title">24小时负荷预测</h2>
-                <p className="card-header-subtitle">总负荷、光伏发电、风电发电和净负荷趋势</p>
-              </div>
-              <div className="flex items-center gap-2 text-sm ml-auto" style={{ color: 'rgba(0, 240, 255, 0.3)' }}>
-                <Clock className="w-4 h-4" aria-hidden="true" />
-                <span className="font-mono">实时更新</span>
-              </div>
+      {/* 主要内容区域：24小时负荷预测图表 */}
+      <div>
+        <div className="card forecast-chart-card">
+          <div className="card-header flex-wrap">
+            <div className="card-header-icon bg-surface-muted border border-edge">
+              <TrendingUp className="w-5 h-5 text-primary-600" aria-hidden="true" />
             </div>
-
-            {/* 传递 isInitialLoad 而非 isLoading，避免刷新时图表被骨架屏替换 */}
-            <LoadForecastChart
-              data={overview}
-              isLoading={overviewLoading && !overview}
-              isRefreshing={overviewLoading && !!overview}
-              height={380}
-            />
-
-            {overviewError && (
-              <div className="mt-4">
-                <ErrorBanner message={overviewError} onRetry={loadOverview} />
-              </div>
-            )}
-
-            {errors.prediction && (
-              <div className="mt-4">
-                <ErrorBanner message={errors.prediction} />
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* 底部状态栏 — 刷新时保留旧数据 */}
-      <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 transition-opacity duration-300 ${isLoading.systemStatus && systemStatus ? 'opacity-80' : 'opacity-100'}`}>
-        {/* 模型状态 */}
-        <div className="card stagger-item stagger-1 hud-corners">
-          <div className="card-header">
-            <div className="card-header-icon" style={{ background: 'rgba(0, 240, 255, 0.06)' }}>
-              <Cpu className="w-5 h-5" style={{ color: '#00F0FF' }} aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <h2 className="card-header-title text-lg font-bold text-ink">24小时负荷与新能源预测曲线</h2>
+              <p className="card-header-subtitle text-xs text-ink-muted">
+                历史 24 小时实际值与回测结果，未来 24 小时预测值
+              </p>
             </div>
-            <div className="min-w-0">
-              <h3 className="card-header-title">模型状态</h3>
-              <p className="card-header-subtitle">深度学习模型运行状态</p>
+            <div className="flex w-full items-center gap-2 text-xs text-ink-muted sm:ml-auto sm:w-auto tabular-nums">
+              <Clock className="w-4 h-4 text-primary-600" aria-hidden="true" />
+              <span>美国东部时间（ET）</span>
             </div>
           </div>
 
-          {systemStatus ? (
-            <div className="space-y-2.5">
-              <div className="flex justify-between text-sm">
-                <span style={{ color: 'rgba(148, 163, 184, 0.6)' }}>已加载模型</span>
-                <span className="text-white tabular-nums font-mono">{systemStatus.models_loaded}/4</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span style={{ color: 'rgba(148, 163, 184, 0.6)' }}>推理设备</span>
-                <span className="text-white font-mono">{systemStatus.device}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span style={{ color: 'rgba(148, 163, 184, 0.6)' }}>平均响应时间</span>
-                <span className="text-white tabular-nums font-mono">
-                  {systemStatus.average_inference_time_ms?.toFixed(1)}ms
-                </span>
-              </div>
+          <LoadForecastChart
+            data={overview}
+            isLoading={overviewLoading && !overview}
+            isRefreshing={overviewLoading && !!overview}
+            height={460}
+          />
+
+          {overviewError && (
+            <div className="mt-4">
+              <ErrorBanner message={overviewError} onRetry={loadOverview} />
             </div>
-          ) : (
-            <div className="space-y-2.5">
-              <div className="skeleton h-4 w-full"></div>
-              <div className="skeleton h-4 w-3/4"></div>
-              <div className="skeleton h-4 w-5/6"></div>
+          )}
+
+          {errors.prediction && (
+            <div className="mt-4">
+              <ErrorBanner message={errors.prediction} />
             </div>
           )}
         </div>
-
-        {/* 数据源状态 */}
-        <div className="card stagger-item stagger-2 hud-corners">
-          <div className="card-header">
-            <div className="card-header-icon" style={{ background: 'rgba(0, 255, 136, 0.06)' }}>
-              <Activity className="w-5 h-5" style={{ color: '#00FF88' }} aria-hidden="true" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="card-header-title">数据源状态</h3>
-              <p className="card-header-subtitle">API和数据更新状态</p>
-            </div>
-          </div>
-
-          <div className="space-y-2.5 text-sm">
-            <div className="flex justify-between">
-              <span style={{ color: 'rgba(148, 163, 184, 0.6)' }}>预测数据</span>
-              <span
-                className={`font-medium flex items-center gap-1.5 ${
-                  prediction ? 'text-green-400' : 'text-red-400'
-                }`}
-              >
-                <span
-                  className={`status-indicator ${prediction ? 'status-online' : 'status-offline'}`}
-                ></span>
-                {prediction ? '正常' : '异常'}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span style={{ color: 'rgba(148, 163, 184, 0.6)' }}>气象数据</span>
-              <span
-                className={`font-medium flex items-center gap-1.5 ${
-                  weather ? 'text-green-400' : 'text-red-400'
-                }`}
-              >
-                <span
-                  className={`status-indicator ${weather ? 'status-online' : 'status-offline'}`}
-                ></span>
-                {weather ? '正常' : '异常'}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span style={{ color: 'rgba(148, 163, 184, 0.6)' }}>最后更新</span>
-              <span className="text-white text-xs tabular-nums font-mono">
-                {lastUpdated.prediction
-                  ? new Date(lastUpdated.prediction).toLocaleTimeString('zh-CN')
-                  : '--'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* 系统集成信息 */}
-        <div className="card stagger-item stagger-3 hud-corners">
-          <div className="card-header">
-            <div className="card-header-icon" style={{ background: 'rgba(255, 45, 149, 0.06)' }}>
-              <Zap className="w-5 h-5" style={{ color: '#FF2D95' }} aria-hidden="true" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="card-header-title">系统集成</h3>
-              <p className="card-header-subtitle">前后端集成状态</p>
-            </div>
-          </div>
-
-          <div className="space-y-2.5 text-sm">
-            <div className="flex justify-between">
-              <span style={{ color: 'rgba(148, 163, 184, 0.6)' }}>FastAPI服务</span>
-              <span
-                className={`font-medium ${
-                  systemStatus ? 'text-green-400' : 'text-yellow-400'
-                }`}
-              >
-                {systemStatus ? '运行中' : '连接中'}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span style={{ color: 'rgba(148, 163, 184, 0.6)' }}>WebSocket</span>
-              <span className="text-yellow-400 font-medium">待实现</span>
-            </div>
-            <div className="flex justify-between">
-              <span style={{ color: 'rgba(148, 163, 184, 0.6)' }}>Docker部署</span>
-              <span style={{ color: 'rgba(148, 163, 184, 0.5)' }} className="font-medium">准备就绪</span>
-            </div>
-          </div>
-        </div>
       </div>
+
+      {/* 服务信息集中展示，避免重复占用预测曲线区域。 */}
+      <section className="overview-service-panel" aria-label="数据与运行信息">
+        <div className="overview-service-group">
+          <h2><Cpu className="w-4 h-4" aria-hidden="true" />模型计算</h2>
+          <dl className="overview-service-list">
+            <div>
+              <dt>已加载模型</dt>
+              <dd className="tabular-nums">{systemStatus ? `${systemStatus.models_loaded} / ${systemStatus.models_total ?? 3}` : '--'}</dd>
+            </div>
+            <div>
+              <dt>平均推理耗时</dt>
+              <dd className="tabular-nums">{systemStatus?.average_inference_time_ms == null ? '--' : `${systemStatus.average_inference_time_ms.toFixed(1)} ms`}</dd>
+            </div>
+          </dl>
+        </div>
+        <div className="overview-service-group">
+          <h2><Activity className="w-4 h-4" aria-hidden="true" />数据获取</h2>
+          <dl className="overview-service-list">
+            <div>
+              <dt>区域气象</dt>
+              <dd className={weather ? 'text-emerald-700' : isConnecting ? 'text-primary-600' : 'text-rose-700'}>
+                <span className={`status-indicator ${weather ? 'status-online' : isConnecting ? 'status-pending' : 'status-offline'}`} aria-hidden="true" />
+                {weather ? '数据可用' : isConnecting ? '建立连接' : '通讯受限'}
+              </dd>
+            </div>
+            <div>
+              <dt>预测原生成时间（ET）</dt>
+              <dd className="tabular-nums">{prediction?.timestamp ? formatEasternISO(prediction.timestamp, ET_FULL) : '--'}</dd>
+            </div>
+            <div>
+              <dt>最近获取预测（ET）</dt>
+              <dd className="tabular-nums">{lastUpdated.prediction ? formatEastern(new Date(lastUpdated.prediction), ET_TIME) : '--'}</dd>
+            </div>
+          </dl>
+        </div>
+        <div className="overview-service-group">
+          <h2><Layers className="w-4 h-4" aria-hidden="true" />本地服务</h2>
+          <dl className="overview-service-list">
+            <div>
+              <dt>后端连接</dt>
+              <dd className={systemStatus ? 'text-emerald-700' : 'text-ink-muted'}>{systemStatus ? '已连接' : '未连接'}</dd>
+            </div>
+            <div><dt>同步策略</dt><dd>定时更新，异常自动重试</dd></div>
+            <div><dt>运行环境</dt><dd>Windows 本地运行</dd></div>
+          </dl>
+        </div>
+      </section>
+      {(errors.weather || errors.systemStatus) && <div className="space-y-2">
+        {errors.weather && <ErrorBanner message={errors.weather} />}
+        {errors.systemStatus && <ErrorBanner message={errors.systemStatus} />}
+      </div>}
     </div>
   )
 }

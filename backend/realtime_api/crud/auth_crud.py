@@ -13,6 +13,7 @@
 
 import asyncio
 import logging
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Tuple
 from hashlib import md5
@@ -163,7 +164,7 @@ class AuthCRUD:
                 
         except Exception as e:
             logger.error(f"验证密码失败: {e}")
-            return False, None
+            raise
 
     async def update_user(self, user_id: int, user_update: UserUpdate, updated_by: Optional[int] = None) -> UserResponse:
         """更新用户信息"""
@@ -370,7 +371,7 @@ class AuthCRUD:
     # JWT 令牌管理
     # =========================================================================
 
-    def create_access_token(self, user_id: int, username: str, expires_delta: Optional[timedelta] = None) -> str:
+    def create_access_token(self, user_id: int, username: str, expires_delta: Optional[timedelta] = None, session_id: Optional[str] = None) -> str:
         """创建JWT访问令牌"""
         if expires_delta:
             expire = datetime.now(timezone.utc) + expires_delta
@@ -381,13 +382,16 @@ class AuthCRUD:
             'sub': str(user_id),
             'username': username,
             'type': 'access',
+            'jti': str(uuid.uuid4()),
             'exp': expire,
             'iat': datetime.now(timezone.utc)
         }
+        if session_id is not None:
+            to_encode['sid'] = session_id
         
         return jwt.encode(to_encode, get_jwt_secret(), algorithm=JWT_ALGORITHM)
 
-    def create_refresh_token(self, user_id: int, username: str, expires_delta: Optional[timedelta] = None) -> str:
+    def create_refresh_token(self, user_id: int, username: str, expires_delta: Optional[timedelta] = None, session_id: Optional[str] = None) -> str:
         """创建JWT刷新令牌"""
         if expires_delta:
             expire = datetime.now(timezone.utc) + expires_delta
@@ -398,9 +402,12 @@ class AuthCRUD:
             'sub': str(user_id),
             'username': username,
             'type': 'refresh',
+            'jti': str(uuid.uuid4()),
             'exp': expire,
             'iat': datetime.now(timezone.utc)
         }
+        if session_id is not None:
+            to_encode['sid'] = session_id
         
         return jwt.encode(to_encode, get_jwt_secret(), algorithm=JWT_ALGORITHM)
 
@@ -460,8 +467,50 @@ class AuthCRUD:
             return True
             
         except Exception as e:
-            logger.error(f"存储会话失败: {e}")
+            logger.error("存储会话失败: %s", type(e).__name__)
+            await self.db.rollback()
             return False
+
+    async def get_active_session(self, token: str, user_id: int, token_type: str, session_id: Optional[str] = None):
+        """Resolve signed tokens to their active stored session, including older JWTs without sid."""
+        if token_type not in ("access", "refresh"):
+            raise ValueError("Unsupported session token type")
+        # Refresh tokens must also match the stored token, even when carrying sid.
+        if token_type == "refresh":
+            token_condition = "s.refresh_token = :token"
+        elif session_id:
+            token_condition = "s.session_id = :session_id"
+        else:
+            token_condition = "s.jwt_token = :token"
+        query = text(f"""
+            SELECT s.session_id, u.username FROM user_sessions s
+            JOIN users u ON u.id = s.user_id
+            WHERE s.user_id = :user_id AND {token_condition}
+              AND s.is_active = TRUE AND s.revoked_at IS NULL
+              AND s.expires_at > UTC_TIMESTAMP() AND u.is_active = TRUE
+            LIMIT 1
+        """)
+        result = await self.db.execute(query, {
+            "token": token, "user_id": user_id, "session_id": session_id,
+        })
+        return result.fetchone()
+
+    async def update_session_access_token(self, session_id: str, user_id: int, token: str) -> bool:
+        query = text("""
+            UPDATE user_sessions SET jwt_token = :token, last_activity = NOW()
+            WHERE session_id = :session_id AND user_id = :user_id
+              AND is_active = TRUE AND revoked_at IS NULL
+              AND expires_at > UTC_TIMESTAMP()
+        """)
+        try:
+            result = await self.db.execute(query, {
+                "session_id": session_id, "user_id": user_id, "token": token,
+            })
+            await self.db.commit()
+            return result.rowcount > 0
+        except Exception:
+            await self.db.rollback()
+            raise
 
     async def revoke_session(self, session_id: str) -> bool:
         """注销会话"""
@@ -472,12 +521,13 @@ class AuthCRUD:
                 WHERE session_id = :session_id
             """)
             
-            await self.db.execute(query, {'session_id': session_id})
+            result = await self.db.execute(query, {'session_id': session_id})
             await self.db.commit()
-            return True
+            return result.rowcount > 0
             
         except Exception as e:
             logger.error(f"注销会话失败: {e}")
+            await self.db.rollback()
             return False
 
     async def revoke_all_user_sessions(self, user_id: int, except_session_id: Optional[str] = None) -> bool:
@@ -507,6 +557,7 @@ class AuthCRUD:
             
         except Exception as e:
             logger.error(f"批量注销会话失败: {e}")
+            await self.db.rollback()
             return False
 
     # =========================================================================

@@ -1,17 +1,18 @@
 import React from 'react'
-import { format } from 'date-fns'
-import { zhCN } from 'date-fns/locale'
+import { CHART_COLORS } from '../../utils/chartTheme'
 import {
   Check, AlertCircle, AlertTriangle,
   ChevronUp, ChevronDown, ChevronsUpDown,
   Gauge as GaugeIcon, Database as DatabaseIcon, BarChart3 as BarChartIcon,
   TrendingUp as TrendingUpIcon, Target as TargetIcon, Activity as ActivityIcon,
+  CalendarDays as CalendarDaysIcon,
 } from 'lucide-react'
+import { formatEasternISO, ET_FULL } from '../../utils/time'
 
 // ========================================
 // Tab 定义
 // ========================================
-export type AnalysisTab = 'overview' | 'history' | 'models' | 'trends' | 'errors' | 'drift'
+export type AnalysisTab = 'overview' | 'history' | 'models' | 'trends' | 'errors' | 'drift' | 'backtest'
 
 export const TABS: { id: AnalysisTab; label: string; icon: React.ReactNode }[] = [
   { id: 'overview', label: '概览', icon: <GaugeIcon /> },
@@ -20,9 +21,17 @@ export const TABS: { id: AnalysisTab; label: string; icon: React.ReactNode }[] =
   { id: 'trends', label: '趋势分析', icon: <TrendingUpIcon /> },
   { id: 'errors', label: '误差分布', icon: <TargetIcon /> },
   { id: 'drift', label: '模型漂移', icon: <ActivityIcon /> },
+  { id: 'backtest', label: '日期回测', icon: <CalendarDaysIcon /> },
 ]
 
-export const MODEL_COLORS = ['#3B82F6', '#10B981', '#f59e0b', '#a855f7', '#ec4899', '#14b8a6']
+export const MODEL_COLORS = [CHART_COLORS.forecast, CHART_COLORS.replay, CHART_COLORS.solar, CHART_COLORS.actual, CHART_COLORS.error, 'var(--chart-purple)']
+
+export const getModelColor = (model: string, index = 0): string => {
+  if (model === 'tf_split_v1') return CHART_COLORS.forecast
+  if (model === 'tf_v2') return CHART_COLORS.replay
+  if (model === 'tf_pv_v2' || model === 'pv_v2') return CHART_COLORS.solar
+  return MODEL_COLORS[index % MODEL_COLORS.length]
+}
 
 // ── 排序类型 ──
 export type SortDirection = 'asc' | 'desc' | null
@@ -30,17 +39,25 @@ export type SortField = string | null
 
 // ── 耗时颜色映射 ──
 export const getInferenceColor = (ms: number): string => {
-  if (ms < 100) return 'text-success-400'
-  if (ms < 500) return 'text-warning-400'
-  return 'text-danger-400'
+  if (ms < 100) return 'text-success-700'
+  if (ms < 500) return 'text-warning-700'
+  return 'text-danger-700'
 }
 
 // ── 模型标签 ──
 export const ModelTag: React.FC<{ model: string }> = ({ model }) => {
-  const isEnsemble = model.toLowerCase().includes('ensemble')
+  const label = model === 'tf_split_v1'
+    ? '当前 TensorFlow 负荷模型（tf_load_split_v1）'
+    : model === 'tf_v2'
+      ? '归档 TensorFlow 联合模型（tf_v2）'
+    : model === 'ensemble'
+      ? '归档历史记录（ensemble）'
+    : model === 'tf_pv_v2' || model === 'pv_v2'
+      ? 'TensorFlow tf_pv_v2'
+      : model
   return (
-    <span className={`model-tag ${isEnsemble ? 'model-tag-ensemble' : ''}`}>
-      {model}
+    <span className="model-tag" title={model}>
+      {label}
     </span>
   )
 }
@@ -74,7 +91,7 @@ export const SortableTh: React.FC<SortableThProps> = ({ field, currentField, cur
   const isActive = currentField === field
   const alignClass = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
   return (
-    <th scope="col" className={`th-sortable py-2 px-3 font-medium ${alignClass} ${isActive ? 'text-blue-400' : 'text-dark-400'}`}>
+    <th scope="col" className={`th-sortable py-2 px-3 font-medium ${alignClass} ${isActive ? 'text-blue-700' : 'text-ink-muted'}`}>
       <span
         className="inline-flex items-center gap-1 cursor-pointer"
         onClick={() => onSort(field)}
@@ -109,7 +126,8 @@ export const formatNumber = (val: number | null | undefined, digits = 2): string
 
 export const formatTime = (isoStr: string): string => {
   try {
-    return format(new Date(isoStr), 'MM-dd HH:mm:ss', { locale: zhCN })
+    // 后端时间戳为 naive 新英格兰墙钟时间，统一按 ET 显示
+    return formatEasternISO(isoStr, ET_FULL)
   } catch {
     return isoStr
   }

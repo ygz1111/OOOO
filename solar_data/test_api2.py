@@ -2,6 +2,7 @@
 """Test NSRDB API with SSL workaround"""
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
+import os
 import requests
 import json
 import urllib3
@@ -9,7 +10,9 @@ import urllib3
 # Disable SSL warnings for testing
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-API_KEY = "QfH6aBgNoDFOMjxbA4NIBnk1o2NeRBO1nQO21Rb9"
+API_KEY = os.environ.get("NREL_API_KEY", "").strip()
+if not API_KEY:
+    raise SystemExit("缺少 NREL_API_KEY 环境变量；请使用自己的密钥，不要写入源码。")
 BASE_URL = "https://developer.nrel.gov/api/nsrdb/v2/solar/psm3-download.json"
 
 params = {

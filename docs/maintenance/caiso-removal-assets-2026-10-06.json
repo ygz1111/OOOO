@@ -1,0 +1,22 @@
+{
+  "protected_files_checked": 20006,
+  "sha256_files_checked": 114,
+  "changes": [],
+  "removed_source_files": [
+    "backend/tests/test_caiso_inference.py",
+    "backend/tests/test_caiso_routes.py",
+    "backend/tests/test_caiso_solar.py",
+    "backend/realtime_api/routers/caiso_solar.py",
+    "backend/realtime_api/services/caiso_data.py",
+    "backend/realtime_api/services/caiso_inference.py",
+    "backend/realtime_api/services/caiso_inference_worker.py",
+    "backend/realtime_api/services/caiso_solar.py",
+    "frontend/src/hooks/useCaisoSolar.ts",
+    "frontend/src/pages/CaisoSolarGeneration.tsx",
+    "frontend/src/types/caisoSolar.ts",
+    "frontend/src/utils/caisoSolar.ts",
+    "frontend/src/__tests__/CaisoSolar.test.tsx"
+  ],
+  "iso_ne_solar_page_sha256": "0d4abf8f93a1a775c51ec8c29d6a7d4ca8a060cc046132ee2537dbeba628638c",
+  "backup": "D:\\GitHub\\OOOOOO-removal-backup-20261006-CAISO"
+}

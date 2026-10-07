@@ -1,0 +1,198 @@
+{
+  "results": [
+    {
+      "route": "/",
+      "rootOverflow": false,
+      "background": "rgb(237, 241, 245)",
+      "curves": [
+        {
+          "stroke": "#334155",
+          "width": "3",
+          "dash": null,
+          "valid": true
+        },
+        {
+          "stroke": "#0F766E",
+          "width": "3",
+          "dash": "6 4",
+          "valid": true
+        },
+        {
+          "stroke": "#175CD3",
+          "width": "3.5",
+          "dash": null,
+          "valid": true
+        },
+        {
+          "stroke": "#B45309",
+          "width": "3.2",
+          "dash": null,
+          "valid": true
+        }
+      ],
+      "charts": [
+        440
+      ],
+      "primaryColor": "rgb(23, 92, 211)"
+    },
+    {
+      "route": "/load-forecast",
+      "rootOverflow": false,
+      "background": "rgb(237, 241, 245)",
+      "curves": [
+        {
+          "stroke": "#334155",
+          "width": "3",
+          "dash": null,
+          "valid": true
+        },
+        {
+          "stroke": "#0F766E",
+          "width": "3",
+          "dash": "6 4",
+          "valid": true
+        },
+        {
+          "stroke": "#175CD3",
+          "width": "3.5",
+          "dash": null,
+          "valid": true
+        }
+      ],
+      "charts": [
+        440
+      ],
+      "primaryColor": "rgb(23, 92, 211)"
+    },
+    {
+      "route": "/price-forecast",
+      "rootOverflow": false,
+      "background": "rgb(237, 241, 245)",
+      "curves": [
+        {
+          "stroke": "#0F766E",
+          "width": "2",
+          "dash": "4 4",
+          "valid": true
+        },
+        {
+          "stroke": "#B45309",
+          "width": "2",
+          "dash": "4 4",
+          "valid": true
+        },
+        {
+          "stroke": "#175CD3",
+          "width": "3.2",
+          "dash": null,
+          "valid": true
+        }
+      ],
+      "charts": [
+        400
+      ],
+      "primaryColor": "rgb(23, 92, 211)"
+    },
+    {
+      "route": "/solar-generation",
+      "rootOverflow": false,
+      "background": "rgb(237, 241, 245)",
+      "curves": [
+        {
+          "stroke": "#0F766E",
+          "width": "3",
+          "dash": "8 5",
+          "valid": true
+        },
+        {
+          "stroke": "#334155",
+          "width": "3",
+          "dash": null,
+          "valid": true
+        },
+        {
+          "stroke": "#B45309",
+          "width": "3.2",
+          "dash": null,
+          "valid": true
+        }
+      ],
+      "charts": [
+        380,
+        400
+      ],
+      "primaryColor": "rgb(23, 92, 211)"
+    },
+    {
+      "route": "/weather-monitor",
+      "rootOverflow": false,
+      "background": "rgb(237, 241, 245)",
+      "curves": [],
+      "charts": [],
+      "primaryColor": "rgb(23, 92, 211)"
+    },
+    {
+      "route": "/historical-analysis",
+      "rootOverflow": false,
+      "background": "rgb(237, 241, 245)",
+      "curves": [],
+      "charts": [],
+      "primaryColor": "rgb(23, 92, 211)"
+    },
+    {
+      "route": "history-trend",
+      "actualRendered": true,
+      "areaRendered": true
+    },
+    {
+      "route": "/operation-situation",
+      "rootOverflow": false,
+      "background": "rgb(237, 241, 245)",
+      "curves": [
+        {
+          "stroke": "#175CD3",
+          "width": "3.2",
+          "dash": null,
+          "valid": true
+        },
+        {
+          "stroke": "#B45309",
+          "width": "3.2",
+          "dash": null,
+          "valid": true
+        },
+        {
+          "stroke": "#334155",
+          "width": "3",
+          "dash": "8 4",
+          "valid": true
+        },
+        {
+          "stroke": "#B45309",
+          "width": "3.2",
+          "dash": null,
+          "valid": true
+        }
+      ],
+      "charts": [
+        360,
+        340,
+        260
+      ],
+      "primaryColor": "rgb(23, 92, 211)"
+    },
+    {
+      "route": "/system-status",
+      "rootOverflow": false,
+      "background": "rgb(237, 241, 245)",
+      "curves": [],
+      "charts": [],
+      "primaryColor": "rgb(23, 92, 211)"
+    }
+  ],
+  "mobile": {
+    "rootOverflow": false,
+    "chartHeight": 360
+  },
+  "pageErrors": []
+}

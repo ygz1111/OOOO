@@ -4,12 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>智能电网负荷预测系统</title>
-    <meta name="description" content="基于深度学习的智能电网光伏发电负荷预测系统" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+    <meta name="description" content="ISO-NE电网负荷、电价及光伏预测与历史分析工作台" />
+    <link rel="icon" type="image/svg+xml" href="/site-mark.svg" />
+    <!--
+      移除 Google Fonts 外链：fonts.googleapis.com 在国内网络不可达，
+      会持续产生 Failed to load resource 错误并拖慢首屏。
+      字体回退到系统字体栈（index.css / tailwind.config 中的 fallback）。
+    -->
   </head>
-  <body class="bg-gray-900 text-white">
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

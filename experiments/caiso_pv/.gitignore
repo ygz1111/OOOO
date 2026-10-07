@@ -1,0 +1,15 @@
+.deps/
+.runtime/
+__pycache__/
+.pytest_cache/
+.t_*/
+*.pyc
+*.keras
+*.h5
+*.npz
+*.parquet
+*.zip
+data/cache/
+data/raw/
+logs/*stdout*.txt
+logs/*stderr*.txt

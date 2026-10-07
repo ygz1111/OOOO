@@ -1,278 +1,150 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react'
 import { apiService } from '../services/api'
-import { LoadPredictionResponse, WeatherResponse, SystemStatus } from '../types'
+import { LoadPredictionResponse, WeatherResponse, SystemStatus, LoadOverviewData } from '../types'
 
-interface ApiContextType {
-  // 数据状态
+interface DataState {
   prediction: LoadPredictionResponse | null
   weather: WeatherResponse | null
   systemStatus: SystemStatus | null
+  overview: LoadOverviewData | null
+}
+type Resource = keyof DataState
+type ResourceMap<T> = Record<Resource, T>
+const initialData: DataState = { prediction: null, weather: null, systemStatus: null, overview: null }
+const flags = (): ResourceMap<boolean> => ({ prediction: false, weather: false, systemStatus: false, overview: false })
+const emptyValues = (): ResourceMap<null> => ({ prediction: null, weather: null, systemStatus: null, overview: null })
 
-  // 加载状态（包含刷新）
-  isLoading: {
-    prediction: boolean
-    weather: boolean
-    systemStatus: boolean
-  }
-
-  // 是否为首次加载（尚无任何数据）
-  isInitialLoad: {
-    prediction: boolean
-    weather: boolean
-    systemStatus: boolean
-  }
-
-  // 最后更新时间戳
-  lastUpdated: {
-    prediction: number | null
-    weather: number | null
-    systemStatus: number | null
-  }
-
-  // 错误状态
-  errors: {
-    prediction: string | null
-    weather: string | null
-    systemStatus: string | null
-  }
-
-  // API 方法
+interface ApiContextType extends DataState {
+  isLoading: ResourceMap<boolean>
+  isInitialLoad: ResourceMap<boolean>
+  lastUpdated: ResourceMap<number | null>
+  errors: ResourceMap<string | null>
   loadPrediction: (forceRefresh?: boolean) => Promise<void>
   loadWeather: (forceRefresh?: boolean) => Promise<void>
   loadSystemStatus: () => Promise<void>
+  loadOverview: (forceRefresh?: boolean) => Promise<void>
   refreshAll: (forceRefresh?: boolean) => Promise<void>
   clearErrors: () => void
+  isConnecting: boolean
 }
 
 const ApiContext = createContext<ApiContextType | undefined>(undefined)
-
 export const useApi = () => {
   const context = useContext(ApiContext)
-  if (!context) {
-    throw new Error('useApi must be used within an ApiProvider')
-  }
+  if (!context) throw new Error('useApi must be used within an ApiProvider')
   return context
 }
 
-interface ApiProviderProps {
-  children: ReactNode
-}
+export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  // 页面之间共享数据，路由切换不会销毁总览结果或重新启动轮询。
+  const [data, setData] = useState<DataState>(initialData)
+  const [isLoading, setIsLoading] = useState(flags)
+  const [errors, setErrors] = useState<ResourceMap<string | null>>(emptyValues)
+  const [lastUpdated, setLastUpdated] = useState<ResourceMap<number | null>>(emptyValues)
+  const failures = useRef(flags())
+  const preparing = useRef(flags())
+  const pending = useRef<Partial<Record<Resource, Promise<void>>>>({})
+  const refreshPromise = useRef<Promise<void> | null>(null)
+  const lastRefresh = useRef(0)
+  const lastPollAttempt = useRef<number | null>(null)
 
-export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
-  const [prediction, setPrediction] = useState<LoadPredictionResponse | null>(null)
-  const [weather, setWeather] = useState<WeatherResponse | null>(null)
-  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null)
-
-  const [isLoading, setIsLoading] = useState({
-    prediction: false,
-    weather: false,
-    systemStatus: false
-  })
-
-  const [errors, setErrors] = useState({
-    prediction: null as string | null,
-    weather: null as string | null,
-    systemStatus: null as string | null
-  })
-
-  const [lastUpdated, setLastUpdated] = useState({
-    prediction: null as number | null,
-    weather: null as number | null,
-    systemStatus: null as number | null
-  })
-
-  // 跟踪是否已获取到初始数据（用 ref 避免 useEffect 闭包陷阱）
-  const hasInitialDataRef = useRef(false)
-  // 跟踪是否处于初始连接阶段（首次成功获取数据之前）
-  const isConnectingRef = useRef(true)
-
-  // ── 使用 useCallback 稳定函数引用，避免 useEffect 无限重渲染 ──
-
-  const loadPrediction = useCallback(async (forceRefresh?: boolean) => {
-    setIsLoading(prev => ({ ...prev, prediction: true }))
-    // 刷新时不清除旧数据，不清除旧错误（避免闪烁）
-
-    try {
-      const data = await apiService.predictLoad(undefined, undefined, forceRefresh)
-      setPrediction(data)
-      setLastUpdated(prev => ({ ...prev, prediction: Date.now() }))
-      setErrors(prev => ({ ...prev, prediction: null }))
-      hasInitialDataRef.current = true
-      isConnectingRef.current = false
-    } catch (error) {
-      // 初始连接阶段不显示刺眼错误，只静默重试
-      if (!isConnectingRef.current) {
-        const message = error instanceof Error ? error.message : '预测加载失败'
-        setErrors(prev => ({ ...prev, prediction: message }))
+  const load = useCallback(<K extends Resource>(key: K, fetch: () => Promise<NonNullable<DataState[K]>>): Promise<void> => {
+    const existing = pending.current[key]
+    if (existing) return existing
+    setIsLoading(previous => ({ ...previous, [key]: true }))
+    const task = (async () => {
+      try {
+        const result = await fetch()
+        setData(previous => ({ ...previous, [key]: result }))
+        setLastUpdated(previous => ({ ...previous, [key]: Date.now() }))
+        setErrors(previous => ({ ...previous, [key]: null }))
+        const quality = 'input_quality' in result ? result.input_quality : null
+        preparing.current[key] = !!quality?.refresh_in_progress
+        failures.current[key] = preparing.current[key] || Object.values(quality?.components ?? {}).some(component => component.status === 'unavailable' || component.status === 'cached')
+      } catch (error) {
+        preparing.current[key] = false
+        failures.current[key] = true
+        setErrors(previous => ({ ...previous, [key]: error instanceof Error ? error.message : '数据加载失败，请稍后重试' }))
+      } finally {
+        delete pending.current[key]
+        setIsLoading(previous => ({ ...previous, [key]: false }))
       }
-    } finally {
-      setIsLoading(prev => ({ ...prev, prediction: false }))
-    }
+    })()
+    pending.current[key] = task
+    return task
   }, [])
 
-  const loadWeather = useCallback(async (forceRefresh?: boolean) => {
-    setIsLoading(prev => ({ ...prev, weather: true }))
+  const loadPrediction = useCallback((force?: boolean) => load('prediction', () => apiService.predictLoad(undefined, undefined, force)), [load])
+  const loadWeather = useCallback((force?: boolean) => load('weather', () => apiService.getCurrentWeather(force)), [load])
+  const loadSystemStatus = useCallback(() => load('systemStatus', () => apiService.getSystemStatus()), [load])
+  const loadOverview = useCallback((force?: boolean) => load('overview', async () => (await apiService.getLoadOverview(force)).data), [load])
 
-    try {
-      const data = await apiService.getCurrentWeather(forceRefresh)
-      setWeather(data)
-      setLastUpdated(prev => ({ ...prev, weather: Date.now() }))
-      setErrors(prev => ({ ...prev, weather: null }))
-      hasInitialDataRef.current = true
-      isConnectingRef.current = false
-    } catch (error) {
-      if (!isConnectingRef.current) {
-        const message = error instanceof Error ? error.message : '气象数据加载失败'
-        setErrors(prev => ({ ...prev, weather: message }))
-      }
-    } finally {
-      setIsLoading(prev => ({ ...prev, weather: false }))
-    }
-  }, [])
+  const refreshAll = useCallback((force?: boolean): Promise<void> => {
+    if (refreshPromise.current) return refreshPromise.current
+    const task = (async () => {
+      // 手动刷新先更新共享预测；随后图表绕过自己的旧缓存读取同一份结果。
+      // 天气下载由预测端统一触发，避免单独更新天气却继续显示旧预测。
+      if (force) await loadPrediction(true)
+      await Promise.all([...(force ? [] : [loadPrediction()]), loadSystemStatus(), loadOverview(force), loadWeather()])
+      lastRefresh.current = Date.now()
+      lastPollAttempt.current = lastRefresh.current
+    })().finally(() => { refreshPromise.current = null })
+    refreshPromise.current = task
+    return task
+  }, [loadPrediction, loadWeather, loadSystemStatus, loadOverview])
 
-  const loadSystemStatus = useCallback(async () => {
-    setIsLoading(prev => ({ ...prev, systemStatus: true }))
-
-    try {
-      const data = await apiService.getSystemStatus()
-      setSystemStatus(data)
-      setLastUpdated(prev => ({ ...prev, systemStatus: Date.now() }))
-      setErrors(prev => ({ ...prev, systemStatus: null }))
-      hasInitialDataRef.current = true
-      isConnectingRef.current = false
-    } catch (error) {
-      if (!isConnectingRef.current) {
-        const message = error instanceof Error ? error.message : '系统状态加载失败'
-        setErrors(prev => ({ ...prev, systemStatus: message }))
-      }
-    } finally {
-      setIsLoading(prev => ({ ...prev, systemStatus: false }))
-    }
-  }, [])
-
-  const refreshAll = useCallback(async (forceRefresh?: boolean) => {
-    await Promise.all([
-      loadPrediction(forceRefresh),
-      loadWeather(forceRefresh),
-      loadSystemStatus()
-    ])
-  }, [loadPrediction, loadWeather, loadSystemStatus])
-
-  const clearErrors = useCallback(() => {
-    setErrors({
-      prediction: null,
-      weather: null,
-      systemStatus: null
-    })
-  }, [])
-
-  // 初始加载 + 自动重试机制
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | null = null
-    let retryInterval: ReturnType<typeof setInterval> | null = null
-
-    // 首次加载数据：用短间隔重试，直到成功为止
-    const startInitialRetry = () => {
-      if (retryInterval) return
-      // 立即尝试一次
-      refreshAll()
-      // 每 10 秒重试一次，直到获取到数据
-      retryInterval = setInterval(async () => {
-        if (hasInitialDataRef.current) {
-          stopInitialRetry()
-          startPolling()
-          return
-        }
-        await refreshAll()
-      }, 10000)
+    let stopped = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const pollDelay = () => Object.values(preparing.current).some(Boolean) ? 5000
+      : Object.values(failures.current).some(Boolean) ? 35000 : 300000
+    const remaining = () => lastPollAttempt.current == null ? 0
+      : Math.max(0, lastPollAttempt.current + pollDelay() - Date.now())
+    const schedule = () => {
+      clearTimeout(timer)
+      if (stopped || document.hidden) return
+      timer = setTimeout(run, remaining())
     }
-
-    const stopInitialRetry = () => {
-      if (retryInterval) {
-        clearInterval(retryInterval)
-        retryInterval = null
+    const run = async () => {
+      if (stopped || document.hidden) return
+      if (remaining() > 0) {
+        schedule()
+        return
       }
-    }
-
-    // 正常轮询：5 分钟间隔
-    const startPolling = () => {
-      if (interval) return
-      interval = setInterval(() => {
-        refreshAll()
-      }, 300000) // 5 分钟刷新
-    }
-
-    const stopPolling = () => {
-      if (interval) {
-        clearInterval(interval)
-        interval = null
-      }
-    }
-
-    // 页面可见时轮询，隐藏时暂停（节省资源 & 避免无效请求）
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        stopPolling()
-        stopInitialRetry()
+      const failed = (Object.keys(failures.current) as Resource[]).filter(key => failures.current[key])
+      if (failed.length && Date.now() - lastRefresh.current < 300000) {
+        const loaders = { prediction: loadPrediction, weather: loadWeather, systemStatus: loadSystemStatus, overview: loadOverview }
+        await Promise.all(failed.map(key => loaders[key]()))
       } else {
-        if (hasInitialDataRef.current) {
-          refreshAll()
-          startPolling()
-        } else {
-          startInitialRetry()
-        }
+        await refreshAll()
+      }
+      lastPollAttempt.current = Date.now()
+      clearTimeout(timer)
+      schedule()
+    }
+    const onVisibility = () => {
+      clearTimeout(timer)
+      if (!document.hidden) {
+        if (remaining() === 0) void run()
+        else schedule()
       }
     }
-
-    startInitialRetry()
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
+    void run()
+    document.addEventListener('visibilitychange', onVisibility)
     return () => {
-      stopPolling()
-      stopInitialRetry()
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      stopped = true
+      clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [])
+  }, [refreshAll, loadPrediction, loadWeather, loadSystemStatus, loadOverview])
 
-  // 派生：是否为首次加载（尚无数据）— 使用 useMemo 避免每次渲染创建新对象
-  const isInitialLoad = useMemo(() => ({
-    prediction: prediction === null,
-    weather: weather === null,
-    systemStatus: systemStatus === null,
-  }), [prediction, weather, systemStatus])
+  const clearErrors = useCallback(() => setErrors(emptyValues()), [])
+  const value = useMemo<ApiContextType>(() => ({
+    ...data, isLoading, errors, lastUpdated,
+    isInitialLoad: { prediction: !data.prediction, weather: !data.weather, systemStatus: !data.systemStatus, overview: !data.overview },
+    isConnecting: !data.prediction || !data.weather || !data.systemStatus,
+    loadPrediction, loadWeather, loadSystemStatus, loadOverview, refreshAll, clearErrors,
+  }), [data, isLoading, errors, lastUpdated, loadPrediction, loadWeather, loadSystemStatus, loadOverview, refreshAll, clearErrors])
 
-  // 使用 useMemo 稳定 value 引用，避免所有消费者组件不必要地重渲染
-  const value: ApiContextType = useMemo(() => ({
-    prediction,
-    weather,
-    systemStatus,
-    isLoading,
-    isInitialLoad,
-    lastUpdated,
-    errors,
-    loadPrediction,
-    loadWeather,
-    loadSystemStatus,
-    refreshAll,
-    clearErrors
-  }), [
-    prediction,
-    weather,
-    systemStatus,
-    isLoading,
-    isInitialLoad,
-    lastUpdated,
-    errors,
-    loadPrediction,
-    loadWeather,
-    loadSystemStatus,
-    refreshAll,
-    clearErrors
-  ])
-
-  return (
-    <ApiContext.Provider value={value}>
-      {children}
-    </ApiContext.Provider>
-  )
+  return <ApiContext.Provider value={value}>{children}</ApiContext.Provider>
 }

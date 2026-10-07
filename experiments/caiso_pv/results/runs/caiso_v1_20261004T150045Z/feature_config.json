@@ -1,0 +1,234 @@
+{
+  "past_hours": 96,
+  "horizon_hours": 24,
+  "past_features": [
+    "solar_actual_mw",
+    "temperature_2m__mean",
+    "relative_humidity_2m__mean",
+    "cloud_cover__mean",
+    "shortwave_radiation__mean",
+    "direct_radiation__mean",
+    "diffuse_radiation__mean",
+    "direct_normal_irradiance__mean",
+    "wind_speed_10m__mean",
+    "surface_pressure__mean",
+    "shortwave_radiation__std",
+    "cloud_cover__std",
+    "shortwave_radiation__kern_west",
+    "shortwave_radiation__fresno_kings",
+    "shortwave_radiation__mojave",
+    "shortwave_radiation__riverside_east",
+    "shortwave_radiation__imperial",
+    "shortwave_radiation__san_diego_east",
+    "shortwave_radiation__central_coast",
+    "cloud_cover__kern_west",
+    "cloud_cover__fresno_kings",
+    "cloud_cover__mojave",
+    "cloud_cover__riverside_east",
+    "cloud_cover__imperial",
+    "cloud_cover__san_diego_east",
+    "cloud_cover__central_coast",
+    "hour_sin",
+    "hour_cos",
+    "day_of_year_sin",
+    "day_of_year_cos",
+    "dow_sin",
+    "dow_cos",
+    "coszen_mean",
+    "solar_elevation_mean",
+    "sun_up_any",
+    "sun_up_fraction"
+  ],
+  "future_features": [
+    "temperature_2m__mean",
+    "relative_humidity_2m__mean",
+    "cloud_cover__mean",
+    "shortwave_radiation__mean",
+    "direct_radiation__mean",
+    "diffuse_radiation__mean",
+    "direct_normal_irradiance__mean",
+    "wind_speed_10m__mean",
+    "surface_pressure__mean",
+    "shortwave_radiation__std",
+    "cloud_cover__std",
+    "shortwave_radiation__kern_west",
+    "shortwave_radiation__fresno_kings",
+    "shortwave_radiation__mojave",
+    "shortwave_radiation__riverside_east",
+    "shortwave_radiation__imperial",
+    "shortwave_radiation__san_diego_east",
+    "shortwave_radiation__central_coast",
+    "cloud_cover__kern_west",
+    "cloud_cover__fresno_kings",
+    "cloud_cover__mojave",
+    "cloud_cover__riverside_east",
+    "cloud_cover__imperial",
+    "cloud_cover__san_diego_east",
+    "cloud_cover__central_coast",
+    "hour_sin",
+    "hour_cos",
+    "day_of_year_sin",
+    "day_of_year_cos",
+    "dow_sin",
+    "dow_cos",
+    "coszen_mean",
+    "solar_elevation_mean",
+    "sun_up_any",
+    "sun_up_fraction"
+  ],
+  "timezone": "America/Los_Angeles",
+  "time_basis": "UTC hour-start; half-open [start,end) physical-hour intervals",
+  "origin_definition": "first future interval start; past [origin-96h,origin), targets [origin,origin+24h)",
+  "requested_label_axis_start_utc": "2024-01-01T08:00:00+00:00",
+  "requested_label_axis_end_exclusive_utc": "2026-10-04T07:00:00+00:00",
+  "actual_source_axis_start_utc": "2024-01-21T08:00:00+00:00",
+  "actual_source_axis_end_exclusive_utc": "2026-09-28T07:00:00+00:00",
+  "partition_axis_basis": "complete official labels plus all configured weather sites and fields",
+  "source_axis_audit": {
+    "official_actual_labels": {
+      "requested_start_utc": "2024-01-01T08:00:00+00:00",
+      "requested_end_exclusive_utc": "2026-10-04T07:00:00+00:00",
+      "physical_hours": 24167,
+      "complete_hours": 24108,
+      "missing_or_incomplete_hours": 59,
+      "first_complete_hour_utc": "2024-01-01T08:00:00+00:00",
+      "last_complete_hour_utc": "2026-10-04T06:00:00+00:00"
+    },
+    "historical_weather_all_sites_fields": {
+      "requested_start_utc": "2024-01-01T08:00:00+00:00",
+      "requested_end_exclusive_utc": "2026-10-04T07:00:00+00:00",
+      "physical_hours": 24167,
+      "complete_hours": 24039,
+      "missing_or_incomplete_hours": 128,
+      "first_complete_hour_utc": "2024-01-01T08:00:00+00:00",
+      "last_complete_hour_utc": "2026-09-28T22:00:00+00:00"
+    },
+    "forecast_weather_all_sites_fields": {
+      "requested_start_utc": "2024-01-01T08:00:00+00:00",
+      "requested_end_exclusive_utc": "2026-10-04T07:00:00+00:00",
+      "physical_hours": 24167,
+      "complete_hours": 23708,
+      "missing_or_incomplete_hours": 459,
+      "first_complete_hour_utc": "2024-01-20T11:00:00+00:00",
+      "last_complete_hour_utc": "2026-10-04T06:00:00+00:00"
+    },
+    "all_sources_joint": {
+      "requested_start_utc": "2024-01-01T08:00:00+00:00",
+      "requested_end_exclusive_utc": "2026-10-04T07:00:00+00:00",
+      "physical_hours": 24167,
+      "complete_hours": 23522,
+      "missing_or_incomplete_hours": 645,
+      "first_complete_hour_utc": "2024-01-20T11:00:00+00:00",
+      "last_complete_hour_utc": "2026-09-28T22:00:00+00:00"
+    }
+  },
+  "effective_admitted_origins": {
+    "train": {
+      "first_origin_utc": "2024-01-21T08:00:00+00:00",
+      "last_origin_utc": "2026-06-29T07:00:00+00:00"
+    },
+    "val": {
+      "first_origin_utc": "2026-06-30T07:00:00+00:00",
+      "last_origin_utc": "2026-07-29T07:00:00+00:00"
+    },
+    "test": {
+      "first_origin_utc": "2026-07-30T07:00:00+00:00",
+      "last_origin_utc": "2026-09-27T07:00:00+00:00"
+    }
+  },
+  "future_weather_kind": "forecast_fixed_lead_day2",
+  "future_availability_check": "each site's availability upper bound <= origin",
+  "future_weather_model": "gfs_global",
+  "future_availability_basis": [
+    "fixed_48h_offset_plus_assumed_6h_release_delay"
+  ],
+  "forecast_batch_note": "48h fixed-lead values vary by valid hour; not one issued batch",
+  "historical_weather_kind": [
+    "historical_reanalysis"
+  ],
+  "historical_weather_note": "historical reconstruction may be revised after forecast origin; it is not an archived live input snapshot",
+  "solar_label_source_id": "caiso_oasis_solar_actual",
+  "solar_label_availability_verified": false,
+  "solar_label_publication_limitation": "OASIS actual reporting may be published on the following day; first publication timestamps are absent. Latest past96 Solar inputs are retrospective actual values, not verified available at forecast origin. This dataset does not establish a fully causal online input vintage.",
+  "online_readiness": "not_established_requires_historical_solar_availability_and_live_weather_contract_validation",
+  "radiation_alignment": "API time t preceding-hour mean assigned to CAISO [t-1h,t); instantaneous weather at end t",
+  "solar_geometry": "pvlib nrel_numpy NREL SPA at UTC interval midpoint; no target-derived future features",
+  "sites": [
+    {
+      "site_id": "kern_west",
+      "latitude": 35.1,
+      "longitude": -119.55,
+      "region": "western Kern / southern Central Valley"
+    },
+    {
+      "site_id": "fresno_kings",
+      "latitude": 36.5,
+      "longitude": -120.3,
+      "region": "Fresno-Kings / Central Valley"
+    },
+    {
+      "site_id": "mojave",
+      "latitude": 34.86,
+      "longitude": -117.97,
+      "region": "Mojave / Antelope Valley inland desert"
+    },
+    {
+      "site_id": "riverside_east",
+      "latitude": 33.61,
+      "longitude": -114.7,
+      "region": "eastern Riverside / Colorado desert"
+    },
+    {
+      "site_id": "imperial",
+      "latitude": 32.79,
+      "longitude": -115.56,
+      "region": "Imperial Valley meteorological context"
+    },
+    {
+      "site_id": "san_diego_east",
+      "latitude": 32.83,
+      "longitude": -116.75,
+      "region": "eastern San Diego inland/coastal transition"
+    },
+    {
+      "site_id": "central_coast",
+      "latitude": 35.29,
+      "longitude": -119.99,
+      "region": "San Luis Obispo / California Valley"
+    }
+  ],
+  "site_selection_sources": [
+    "https://www.energy.ca.gov/data-reports/energy-almanac/california-electricity-data",
+    "https://cecgis-caenergy.opendata.arcgis.com/documents/1cf3d9dd53e846149c2fc96e9a93c468/about",
+    "https://www.energy.ca.gov/sites/default/files/2019-09/2018_Utility-Scale_Solar_Capacity_and_Electrical_Generation-by_County-Map.pdf"
+  ],
+  "regional_weighting": "equal weather-site mean; no invented generating-capacity weights",
+  "baseline": "physical-hour lag24 (not wall-clock same hour on DST transition)",
+  "mape_daylight_threshold_mw": 181.2906957,
+  "mape_daylight_threshold_basis": "1% of admitted Train positive actual MW P99, minimum 1MW; no validation/test fitting",
+  "input_sources": [
+    {
+      "path": "D:\\GitHub\\OOOOOO\\experiments\\caiso_pv\\data\\processed\\labels_caiso_oasis_solar_actual_2024-01-01_2026-10-03_20261004T143346982407Z.csv",
+      "sha256": "0d90f7cf311017ad7cdf2c05e5302d49847561ed5b23499de5350c8d0c5338b4"
+    },
+    {
+      "path": "D:\\GitHub\\OOOOOO\\experiments\\caiso_pv\\data\\processed\\weather\\weather_20261004_gfs_day2_v1\\history.parquet",
+      "sha256": "d1910ae0924a145c4140cecd064268b7f3f36cfbacea77164102d8b0988d1e97"
+    },
+    {
+      "path": "D:\\GitHub\\OOOOOO\\experiments\\caiso_pv\\data\\processed\\weather\\weather_20261004_gfs_day2_v1\\future_day2.parquet",
+      "sha256": "f46a31341abf1ea83a35804569dca31558c009337773f586e888a6e1ccf1fcfc"
+    },
+    {
+      "path": "D:\\GitHub\\OOOOOO\\experiments\\caiso_pv\\data\\processed\\weather\\weather_20261004_gfs_day2_v1\\manifest.json",
+      "sha256": "117a8716c3fdc01d560a1233413b9fd6c47bde51aec4174240f294bb519c0ac8"
+    }
+  ],
+  "dependency_versions": {
+    "python": "3.11.16",
+    "numpy": "1.26.4",
+    "pandas": "3.0.5",
+    "pvlib": "0.16.1",
+    "pyarrow": "16.1.0"
+  }
+}

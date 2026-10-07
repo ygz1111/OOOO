@@ -24,6 +24,13 @@ from concurrent.futures import ThreadPoolExecutor
 
 from realtime_api.config_manager import get_config
 
+# LogRecord 标准属性集合：用于区分"业务 extra 字段"与 logging 内部属性。
+# extra={...} 传入时，logging 会把每个键平铺为 record 的属性（record.extra 并不存在），
+# 因此收集 record.__dict__ 中所有非保留键即可拿到全部业务上下文。
+_RESERVED_RECORD_ATTRS = set(vars(logging.makeLogRecord({})).keys()) | {
+    "message", "asctime", "taskName",
+}
+
 
 class StructuredJSONFormatter(logging.Formatter):
     """结构化JSON日志格式器"""
@@ -48,35 +55,32 @@ class StructuredJSONFormatter(logging.Formatter):
         if record.exc_info:
             log_entry["exception"] = self.formatException(record.exc_info)
             log_entry["traceback"] = self.formatException(record.exc_info)
-        
-        # 添加额外字段
-        if hasattr(record, 'extra') and record.extra:
-            log_entry.update(record.extra)
-        
-        # 添加业务上下文信息（如果有）
-        if hasattr(record, 'request_id'):
-            log_entry["request_id"] = record.request_id
-        
-        if hasattr(record, 'user_id'):
-            log_entry["user_id"] = record.user_id
-        
-        if hasattr(record, 'session_id'):
-            log_entry["session_id"] = record.session_id
-        
-        if hasattr(record, 'correlation_id'):
-            log_entry["correlation_id"] = record.correlation_id
-        
-        # 添加性能指标（如果有）
+
+        # 添加业务上下文（extra= 传入的字段，2026-08 修复）：
+        # logging 会把 extra 的键平铺为 record 属性（不存在 record.extra），
+        # 旧实现 hasattr(record,'extra') 恒为 False，导致所有业务字段丢失。
+        extra_fields = {
+            k: v
+            for k, v in record.__dict__.items()
+            if k not in _RESERVED_RECORD_ATTRS and not k.startswith("_")
+        }
+        if extra_fields:
+            log_entry.update(extra_fields)
+
+        # 兼容旧白名单字段（若 extra 收集已包含则跳过重复键）
+        for attr in ("request_id", "user_id", "session_id", "correlation_id"):
+            if attr not in log_entry and hasattr(record, attr):
+                log_entry[attr] = getattr(record, attr)
+
         if hasattr(record, 'duration_ms'):
             log_entry["duration_ms"] = record.duration_ms
-        
+
         if hasattr(record, 'response_time_ms'):
             log_entry["response_time_ms"] = record.response_time_ms
-        
-        # 添加标签（如果有）
+
         if hasattr(record, 'tags'):
             log_entry["tags"] = record.tags
-        
+
         return json.dumps(log_entry, ensure_ascii=False, separators=(',', ':'))
 
 
@@ -342,9 +346,13 @@ class StructuredLoggingManager:
         return record.levelno >= current_level
     
     def _access_log_filter(self, record: logging.LogRecord) -> bool:
-        """访问日志过滤器 - 只记录包含request_id的日志"""
-        extra = getattr(record, 'extra', {})
-        return 'request_id' in extra and hasattr(record, 'request_id')
+        """访问日志过滤器 - 只记录包含request_id的日志
+
+        2026-08 修复：旧实现 getattr(record,'extra',{}) 恒为空字典，
+        导致 access.log 永远为空；ContextLogger 总会把 request_id 平铺
+        为 record 属性，直接检查该属性即可。
+        """
+        return hasattr(record, 'request_id')
     
     def get_logger(self, name: str, request_id: Optional[str] = None) -> ContextLogger:
         """获取日志记录器"""

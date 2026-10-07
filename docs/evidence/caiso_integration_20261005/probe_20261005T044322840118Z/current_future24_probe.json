@@ -1,0 +1,21 @@
+{
+  "origin_utc": "2026-10-05T04:00:00+00:00",
+  "target_end_exclusive_utc": "2026-10-06T04:00:00+00:00",
+  "model_inference_performed": false,
+  "probe_started_at_utc": "2026-10-05T04:44:31.706735+00:00",
+  "status": "PASS",
+  "shape": [
+    24,
+    35
+  ],
+  "finite_feature_rows": 24,
+  "complete_weather_hours": 24,
+  "all_availability_bounds_at_or_before_origin": true,
+  "availability_basis": [
+    "fixed_48h_offset_plus_assumed_6h_release_delay"
+  ],
+  "actual_publication_time_verified": false,
+  "first_hour": "2026-10-05T04:00:00+00:00",
+  "last_hour": "2026-10-06T03:00:00+00:00",
+  "probe_completed_at_utc": "2026-10-05T04:44:33.993377+00:00"
+}

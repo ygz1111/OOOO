@@ -1,6 +1,8 @@
+import ChartLegend from '../../components/ChartLegend'
+import { CHART_COLORS, CHART_GRID, CHART_LEGEND } from '../../utils/chartTheme'
 import React from 'react'
 import { TrendingUp } from 'lucide-react'
-import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { ComposedChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { Spinner, EmptyState, ErrorBanner } from '../../components/Skeleton'
 import { RefreshButton } from '../../components/ui/MicroInteractions'
 import type { TrendDataPoint } from '../../types'
@@ -20,10 +22,10 @@ export const TrendsTab: React.FC<Props> = ({ trends, trendWindow, setTrendWindow
 
   return (
     <div className="space-y-4 animate-fade-in">
-      <div className="card tech-grid-bg">
+      <div className="card">
         <div className="card-header">
-          <div className="card-header-icon bg-primary-500/15">
-            <TrendingUp className="w-5 h-5 text-primary-400" aria-hidden="true" />
+          <div className="card-header-icon bg-surface-muted">
+            <TrendingUp className="w-5 h-5 text-primary-600" aria-hidden="true" />
           </div>
           <div className="min-w-0">
             <h2 className="card-header-title">时间维度趋势分析</h2>
@@ -54,39 +56,29 @@ export const TrendsTab: React.FC<Props> = ({ trends, trendWindow, setTrendWindow
         ) : (
           <>
             <ResponsiveContainer width="100%" height={380}>
-              <AreaChart data={trends} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
-                <defs>
-                  <linearGradient id="predGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="actualGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10B981" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey="time_label" stroke="#64748b" fontSize={11} angle={-15} textAnchor="end" height={60} />
-                <YAxis stroke="#64748b" fontSize={12} tickFormatter={(v) => `${(v / 1000).toFixed(1)}k`} />
-                <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1F2937', borderRadius: '8px' }} labelStyle={{ color: '#cbd5e1' }} formatter={(value: any) => [`${Number(value).toFixed(1)} MW`, '']} />
-                <Legend wrapperStyle={{ paddingTop: '10px' }} />
-                <Area type="monotone" dataKey="predicted_load" name="预测负荷" stroke="#3B82F6" strokeWidth={2} fill="url(#predGrad)" />
-                {trends.some(t => t.actual_load !== undefined) && (
-                  <Area type="monotone" dataKey="actual_load" name="实际负荷" stroke="#10B981" strokeWidth={2} fill="url(#actualGrad)" />
+              <ComposedChart data={trends} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                <CartesianGrid {...CHART_GRID} />
+                <XAxis dataKey="time_label" stroke={CHART_COLORS.axis} fontSize={12} tickLine={false} axisLine={false} angle={-15} textAnchor="end" height={60} padding={{ left: 24, right: 8 }} minTickGap={20} />
+                <YAxis stroke={CHART_COLORS.axis} fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}`} />
+                <Tooltip contentStyle={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px' }} labelStyle={{ color: 'var(--text)' }} itemStyle={{ color: 'var(--text)' }} formatter={(value: any) => [`${Number(value).toFixed(1)} MW`, '']} />
+                <Legend content={<ChartLegend />} wrapperStyle={CHART_LEGEND} />
+                <Area type="monotone" dataKey="predicted_load" name="预测负荷" stroke={CHART_COLORS.forecast} strokeWidth={3.2} fill={CHART_COLORS.forecast} fillOpacity={0.05} isAnimationActive={false} />
+                {trends.some(t => t.actual_load != null) && (
+                  <Line type="monotone" dataKey="actual_load" name="实际负荷" stroke={CHART_COLORS.actual} strokeWidth={3} dot={false} connectNulls={false} isAnimationActive={false} />
                 )}
-              </AreaChart>
+              </ComposedChart>
             </ResponsiveContainer>
 
-            {trends.some(t => t.mape !== undefined) && (
+            {trends.some(t => t.mape != null) && (
               <div className="mt-6">
-                <h3 className="text-sm font-medium text-dark-300 mb-3">MAPE 趋势变化</h3>
-                <ResponsiveContainer width="100%" height={200}>
+                <h3 className="text-sm font-medium text-ink mb-3">MAPE 趋势变化</h3>
+                <ResponsiveContainer width="100%" height={260}>
                   <LineChart data={trends} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                    <XAxis dataKey="time_label" stroke="#64748b" fontSize={11} angle={-15} textAnchor="end" height={60} />
-                    <YAxis stroke="#64748b" fontSize={12} tickFormatter={(v) => `${v.toFixed(1)}%`} />
-                    <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1F2937', borderRadius: '8px' }} labelStyle={{ color: '#cbd5e1' }} formatter={(value: any) => [`${Number(value).toFixed(2)}%`, 'MAPE']} />
-                    <Line type="monotone" dataKey="mape" name="MAPE" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} />
+                    <CartesianGrid {...CHART_GRID} />
+                    <XAxis dataKey="time_label" stroke={CHART_COLORS.axis} fontSize={12} tickLine={false} axisLine={false} angle={-15} textAnchor="end" height={60} padding={{ left: 24, right: 8 }} minTickGap={20} />
+                    <YAxis stroke={CHART_COLORS.axis} fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `${v.toFixed(1)}%`} />
+                    <Tooltip contentStyle={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px' }} labelStyle={{ color: 'var(--text)' }} itemStyle={{ color: 'var(--text)' }} formatter={(value: any) => [`${Number(value).toFixed(2)}%`, 'MAPE']} />
+                    <Line type="monotone" dataKey="mape" name="MAPE" stroke={CHART_COLORS.error} strokeWidth={3} dot={{ r: 3 }} isAnimationActive={false} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>

@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 
 from realtime_api.database import db_manager
+from realtime_api.utils.iso_ne_intervals import ACTUAL_REGION, ACTUAL_SOURCE, actual_label_sql
 
 # 配置日志
 logger = logging.getLogger("crud")
@@ -49,6 +50,8 @@ class WeatherDataCRUD:
         longitude: float = -71.06
     ) -> int:
         """插入气象数据"""
+        # ON DUPLICATE KEY UPDATE + (location, timestamp) 唯一键:
+        # 同一站点同一时刻重复写入时更新气象值（幂等, 避免重复膨胀）
         sql = """
         INSERT INTO weather_data (
             timestamp, location, temperature_2m, dew_point_2m,
@@ -57,6 +60,22 @@ class WeatherDataCRUD:
             diffuse_radiation, data_quality_score, is_validated, data_source,
             latitude, longitude
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+            temperature_2m = VALUES(temperature_2m),
+            dew_point_2m = VALUES(dew_point_2m),
+            relative_humidity_2m = VALUES(relative_humidity_2m),
+            wind_speed_10m = VALUES(wind_speed_10m),
+            wind_direction_10m = VALUES(wind_direction_10m),
+            wind_gusts_10m = VALUES(wind_gusts_10m),
+            cloud_cover = VALUES(cloud_cover),
+            shortwave_radiation = VALUES(shortwave_radiation),
+            direct_radiation = VALUES(direct_radiation),
+            diffuse_radiation = VALUES(diffuse_radiation),
+            data_quality_score = VALUES(data_quality_score),
+            is_validated = VALUES(is_validated),
+            data_source = VALUES(data_source),
+            latitude = VALUES(latitude),
+            longitude = VALUES(longitude)
         """
         params = (
             timestamp, location, temperature_2m, dew_point_2m,
@@ -126,7 +145,6 @@ class LoadPredictionsCRUD:
         target_timestamp: datetime,
         load_forecast_mw: float,
         pv_estimation_mw: Optional[float] = None,
-        wind_estimation_mw: Optional[float] = None,
         net_load_mw: Optional[float] = None,
         confidence_lower_mw: Optional[float] = None,
         confidence_upper_mw: Optional[float] = None,
@@ -145,18 +163,20 @@ class LoadPredictionsCRUD:
         """
         model_weights_json = json.dumps(model_weights) if model_weights else None
 
+        # INSERT IGNORE + (prediction_id, target_timestamp) 唯一键:
+        # 同一预测请求的同一目标时刻重复插入时静默跳过, 避免重复数据膨胀
         sql = """
-        INSERT INTO load_predictions (
+        INSERT IGNORE INTO load_predictions (
             prediction_id, prediction_timestamp, target_timestamp, load_forecast_mw,
-            pv_estimation_mw, wind_estimation_mw, net_load_mw, confidence_lower_mw,
+            pv_estimation_mw, net_load_mw, confidence_lower_mw,
             confidence_upper_mw, model_type, model_weights,
             inference_time_ms, cache_hit, data_source
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
 
         params = (
             prediction_id, prediction_timestamp, target_timestamp, load_forecast_mw,
-            pv_estimation_mw, wind_estimation_mw, net_load_mw, confidence_lower_mw,
+            pv_estimation_mw, net_load_mw, confidence_lower_mw,
             confidence_upper_mw, model_type, model_weights_json,
             inference_time_ms, cache_hit, data_source
         )
@@ -176,42 +196,71 @@ class LoadPredictionsCRUD:
         end_time: datetime,
         model_type: Optional[str] = None,
         limit: Optional[int] = None,
-        order_desc: bool = False
+        order_desc: bool = False,
+        dedupe_target: bool = False,
+        causal_only: bool = True,
     ) -> List[Dict[str, Any]]:
         """按时间范围查询预测结果
 
         Args:
             limit:  最多返回的记录数 (None = 不限制)
             order_desc:  True 时按时间降序 (最新在前)，默认 False 升序
+            dedupe_target: True 时按 target_timestamp 去重，每个目标时刻只保留
+                最新一次预测（prediction_timestamp 最大，其次 id 最大）。
+                2026-08 修复：同一 target_timestamp 可能因多次预测请求存在多条记录，
+                统计端点若不去重会把同一小时的真实值重复计数，导致 MAE/MAPE 失真。
+            causal_only: True 时排除目标时刻之后才生成的记录。这样的记录不是
+                可用于在线评估的真实预测，不能参与历史误差统计。
         """
         order_clause = "ORDER BY target_timestamp DESC" if order_desc else "ORDER BY target_timestamp ASC"
         limit_clause = f"LIMIT {int(limit)}" if limit is not None else ""
 
+        where = "target_timestamp BETWEEN %s AND %s"
         if model_type:
+            where += " AND model_type = %s"
+        if causal_only:
+            where += " AND prediction_timestamp < target_timestamp"
+
+        # Never evaluate TF hour-ending zonal forecasts against legacy system
+        # load/hour-start labels. Keep legacy rows intact, join verified labels.
+        alias = "t" if dedupe_target else "load_predictions"
+        actual_label = actual_label_sql(alias)
+        _cols = (
+            "id, prediction_id, prediction_timestamp, target_timestamp, "
+            "load_forecast_mw, pv_estimation_mw, net_load_mw, "
+            "confidence_lower_mw, confidence_upper_mw, model_type, "
+            "inference_time_ms, cache_hit, data_source, created_at, "
+            f"{actual_label} AS actual_load_mw"
+        )
+
+        if dedupe_target:
             sql = f"""
-            SELECT id, prediction_id, prediction_timestamp, target_timestamp,
-                   load_forecast_mw, pv_estimation_mw, wind_estimation_mw, net_load_mw,
-                   confidence_lower_mw, confidence_upper_mw, model_type,
-                   inference_time_ms, cache_hit, data_source, created_at,
-                   actual_load_mw
-            FROM load_predictions
-            WHERE target_timestamp BETWEEN %s AND %s AND model_type = %s
+            SELECT {_cols}
+            FROM (
+                SELECT lp.*,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY target_timestamp
+                           ORDER BY prediction_timestamp DESC, id DESC
+                       ) AS __rn
+                FROM load_predictions lp
+                WHERE {where}
+            ) t
+            WHERE __rn = 1
             {order_clause}
             {limit_clause}
             """
-            params = (start_time, end_time, model_type)
         else:
             sql = f"""
-            SELECT id, prediction_id, prediction_timestamp, target_timestamp,
-                   load_forecast_mw, pv_estimation_mw, wind_estimation_mw, net_load_mw,
-                   confidence_lower_mw, confidence_upper_mw, model_type,
-                   inference_time_ms, cache_hit, data_source, created_at,
-                   actual_load_mw
+            SELECT {_cols}
             FROM load_predictions
-            WHERE target_timestamp BETWEEN %s AND %s
+            WHERE {where}
             {order_clause}
             {limit_clause}
             """
+
+        if model_type:
+            params = (start_time, end_time, model_type)
+        else:
             params = (start_time, end_time)
 
         try:
@@ -222,14 +271,15 @@ class LoadPredictionsCRUD:
 
     @staticmethod
     async def get_latest_predictions(limit: int = 24) -> List[Dict[str, Any]]:
-        """获取最新的预测结果"""
-        sql = """
+        """获取最新的有效在线预测结果。"""
+        sql = f"""
         SELECT id, prediction_id, prediction_timestamp, target_timestamp,
-               load_forecast_mw, pv_estimation_mw, wind_estimation_mw, net_load_mw,
+               load_forecast_mw, pv_estimation_mw, net_load_mw,
                confidence_lower_mw, confidence_upper_mw, model_type,
                inference_time_ms, cache_hit, data_source, created_at,
-               actual_load_mw
+               {actual_label_sql()} AS actual_load_mw
         FROM load_predictions
+        WHERE prediction_timestamp < target_timestamp
         ORDER BY prediction_timestamp DESC, target_timestamp DESC
         LIMIT %s
         """
@@ -245,7 +295,7 @@ class LoadPredictionsCRUD:
         """按预测ID查询"""
         sql = """
         SELECT id, prediction_id, prediction_timestamp, target_timestamp,
-               load_forecast_mw, pv_estimation_mw, wind_estimation_mw, net_load_mw,
+               load_forecast_mw, pv_estimation_mw, net_load_mw,
                confidence_lower_mw, confidence_upper_mw, model_type,
                model_weights, inference_time_ms, cache_hit, data_source, created_at
         FROM load_predictions
@@ -581,18 +631,36 @@ class ActualLoadDataCRUD:
         start_time: datetime,
         end_time: datetime
     ) -> List[Dict[str, Any]]:
-        """按时间范围查询实际负荷数据"""
+        """只读与当前模型口径一致的、完整采样的小时结束负荷。"""
         sql = """
         SELECT id, timestamp, actual_load_mw, region, data_source, created_at
         FROM actual_load_data
         WHERE timestamp BETWEEN %s AND %s
+          AND region = %s AND data_source = %s
         ORDER BY timestamp ASC
         """
         try:
-            return await db_manager.execute_sql(sql, (start_time, end_time))
+            return await db_manager.execute_sql(sql, (start_time, end_time, ACTUAL_REGION, ACTUAL_SOURCE))
         except Exception as e:
             logger.error(f"查询实际负荷数据失败: {str(e)}")
             raise
+
+    @staticmethod
+    async def get_time_bounds() -> Dict[str, Any]:
+        """查询真实负荷数据的可用时间范围（任意日期回测的日期选择器约束）"""
+        sql = """
+        SELECT MIN(timestamp) AS earliest, MAX(timestamp) AS latest
+        FROM actual_load_data
+        WHERE region = %s AND data_source = %s
+        """
+        try:
+            rows = await db_manager.execute_sql(sql, (ACTUAL_REGION, ACTUAL_SOURCE))
+        except Exception as e:
+            logger.error(f"查询实际负荷时间范围失败: {str(e)}")
+            raise
+        if rows and rows[0]:
+            return {"earliest": rows[0].get("earliest"), "latest": rows[0].get("latest")}
+        return {"earliest": None, "latest": None}
 
     # NOTE: 原 backfill_predictions_actual() 已删除 —— 它曾用 ±2% 随机噪声伪造"实际负荷"数据，
     # 污染预测准确性统计。实际负荷只能来自真实数据源（如 ISO New England API），

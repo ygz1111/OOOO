@@ -1,244 +1,87 @@
 # 智能电网负荷预测系统
 
-基于深度学习的电力负荷预测系统：4 模型集成（EnhancedLSTM / BiGRU / DeepTCN / SpatialTransformer）
-预测未来 24 小时系统负荷，整合 Open-Meteo 实时气象、光伏/风电估算，提供 FastAPI 实时预测服务与
-React 可视化前端。
+面向 ISO New England 的 TensorFlow 智慧能源预测平台，提供未来 24 小时负荷、电价与光伏发电预测，以及历史回测、误差分析、气象监测和可视化大屏。
 
----
+当前交付方式为本地运行。最近启动优化见 [启动与首次加载验收](启动与首次加载验收-2026-10-01.md)，时间口径及已有修复见 [本地运行数据对齐验收](本地运行数据对齐验收-2026-09-23.md)。
 
-## 一、项目概述
+模型开发和正式训练遵循 [模型训练与验证环境约定](模型训练与验证环境约定.md)：本地完成开发及小规模验证，正式训练优先使用 Google Colab T4，现有模型和训练数据保留。提前量误差统计、输入留档及离线诊断见 [预测评估与输入留档验收](预测评估与输入留档验收-2026-10-03.md)。
 
-### 1.1 核心目标
-- **负荷预测**：基于 ISO New England 电网数据（2023-2025），4 模型加权集成预测未来 24 小时负荷
-- **实时集成**：通过 Open-Meteo API 获取新英格兰 6 城市实时气象，动态预测
-- **光伏/风电融合**：光伏 ML 预测（4 模型）+ 物理模型回退，风电物理估算，净负荷计算
-- **生产部署**：FastAPI + MySQL + Redis + Docker Compose 全栈编排
+电价标签、回测日期竞争及电价/光伏页面恢复的本轮验证见 [电价标签与页面恢复验收](电价标签与页面恢复验收-2026-10-01.md)。
 
-### 1.2 项目现状
-- ✅ 数据处理管道完成（产物在 `processed/`，无需重跑）
-- ✅ 4 模型训练完成（权重在 `backend/models/models/*.pth`）
-- ✅ FastAPI 实时预测服务（认证 + 6 组路由 + 预测入库）
-- ✅ React 前端（8 个页面，登录/仪表盘/预测/天气/光伏/风电/系统状态/历史分析）
-- ✅ 测试套件（299 个测试，`backend/tests/`）
+前端正式工作台与深色监控两种外观的实现与验证见 [前端双模式视觉验收](前端双模式视觉验收-2026-10-03.md)。
 
-### 1.3 技术规格
-- **数据**：3 年小时级数据，26,304 行，38 个特征
-- **模型**：EnhancedLSTM / BiGRU / DeepTCN / SpatialTransformer 加权集成
-- **预测精度**（测试集 2017 序列，反归一化真实 MW）：集成 MAPE 7.41%、R² 0.714；
-  最优单模型 SpatialTransformer MAPE 4.43%、R² 0.880
-- **接口**：REST API（JWT 认证）+ OpenAPI 文档（`/docs`）
-- **硬件**：GPU/CPU 推理自适应（无 GPU 时自动 CPU）
+CAISO 太阳能页面及其后端接口已于 2026-10-06 移除，见 [功能移除记录](maintenance/CAISO功能移除-2026-10-06.md)。独立训练模型和数据保留，研究记录见 [CAISO 独立实验说明](../experiments/caiso_pv/README.md)；此前 [页面接入与验收](CAISO太阳能页面接入与验收-2026-10-05.md) 仅作为历史记录，不代表当前功能。
 
----
+论文正文和配套事实、图表、实验记录集中在 `Word/`，可从 [论文项目事实](../Word/materials/THESIS_PROJECT_FACTS.md) 和 [论文提纲](../Word/materials/THESIS_OUTLINE.md) 查阅。历史项目审计见 [项目审计与上下文](audits/PROJECT_AUDIT.md)。
 
-## 二、项目结构
+当前目录位置、已删除项、验证结果及恢复备份见 [项目清理与目录整理记录](maintenance/项目清理与目录整理-2026-10-06.md)。
 
-```
-OOOOOO/
-├── backend/
-│   ├── realtime_api/          # FastAPI 后端（主链路）
-│   │   ├── app.py             # 入口（lifespan、中间件、异常处理、路由挂载）
-│   │   ├── auth/              # JWT 认证（中间件白名单 + RBAC 依赖）
-│   │   ├── routers/           # auth/analytics/prediction/weather/system/generation
-│   │   ├── services/          # container（服务容器）、prediction_pipeline（预测管线）
-│   │   ├── crud/              # 数据库访问层
-│   │   ├── schemas/           # Pydantic 模型
-│   │   ├── tasks/             # 后台定时任务（系统监控/性能预警）
-│   │   ├── config.py          # 配置管理器（YAML + 环境变量）
-│   │   ├── database.py        # MySQL 连接池 + SQLAlchemy async
-│   │   ├── openmeteo_client.py    # Open-Meteo 气象客户端
-│   │   ├── feature_generator.py   # 实时特征工程（38 维）
-│   │   ├── normalization_adapter.py # 归一化/逆归一化
-│   │   ├── prediction_service.py  # 模型推理服务
-│   │   ├── pv_estimator.py        # 光伏物理估算
-│   │   ├── wind_estimator.py      # 风电物理估算
-│   │   ├── weather_validator.py   # 气象数据质量校验
-│   │   └── monitoring_service.py  # 监控/准确率跟踪
-│   ├── models/
-│   │   ├── four_models.py     # 4 个模型定义（训练与推理共用）
-│   │   ├── visualization.py   # 论文图表可视化
-│   │   └── models/            # 训练产物：4 个 .pth + final_results.json（真实指标）
-│   ├── train_four_models.py   # 4 模型训练入口
-│   ├── scripts/recompute_final_metrics.py  # 测试集真实指标重算（权威指标）
-│   ├── tests/                 # 299 个单元测试（pytest）
-│   ├── config/                # app_config.yaml / locations.yaml
-│   └── requirements.txt
-├── frontend/                  # React 18 + Vite + TS + Tailwind + Recharts
-│   └── src/
-│       ├── pages/             # Login/Dashboard/LoadForecast/WeatherMonitor/
-│       │                      # SolarGeneration/WindGeneration/SystemStatus/HistoricalAnalysis
-│       ├── components/        # 通用组件 + cyber/（登录页赛博风）
-│       ├── contexts/          # ApiContext（轮询）/ AuthContext（登录态）
-│       ├── services/api.ts    # Axios API 封装
-│       └── types/
-├── docs/                      # 项目文档
-├── docker-compose.yml         # API + MySQL + Redis + Prometheus + Grafana 编排
-└── start.ps1                  # 一键启动（Windows）
+## 当前生产模型
+
+ISO-NE 在线预测链接入以下 3 个 TensorFlow 模型，模型加载失败时直接报告错误，不回退到其他框架或物理估算：
+
+| 模型标识 | 任务 | 架构 | 输入 | 输出 |
+|---|---|---|---|---|
+| `tf_load_split_v1` | 负荷预测 | BiGRU + GRU 编解码器 | 过去 168h + 未来 24h 已知特征 | 未来 24h 负荷（MW） |
+| `tf_price_split_v1` | 电价预测 | BiGRU + GRU 分位数模型 | 过去 168h + 未来 24h 已知特征 | 未来 24h P10/P50/P90（USD/MWh） |
+| `pv_v2` | 光伏预测 | TCN + GRU + 交叉注意力 | 过去 96h + 未来 24h 气象/太阳特征 | 未来 24h 分布式光伏估算参考出力 |
+
+生产权重与 scaler 位于 `backend/models/tf_assets/`，模型定义位于 `backend/models/tensorflow_load/`，加载入口位于 `backend/realtime_api/services/container.py`。
+
+## 技术栈
+
+- 前端：React、TypeScript、Vite、Tailwind CSS、Recharts
+- 后端：FastAPI、Pydantic、SQLAlchemy Async
+- AI：TensorFlow/Keras、NumPy、Pandas、scikit-learn
+- 数据库：MySQL；Redis 用于缓存；Prometheus/Grafana 用于监控
+- 外部数据：ISO-NE、Open-Meteo
+
+## 主要目录
+
+```text
+backend/
+  realtime_api/                 FastAPI、路由、实时特征与模型服务
+  models/tensorflow_load/       TensorFlow 模型定义
+  models/tf_assets/             生产权重、scaler、冻结验收数据
+  scripts/                      数据准备、校验与运行检查
+  tests/                        后端测试
+frontend/                       React 可视化前端
+MMXX/                           TensorFlow 训练工程和训练结果
+solar_data/                     光伏数据准备，不参与线上模型加载
+experiments/caiso_pv/            保留的 CAISO 独立研究模型和数据
+Word/                           毕业论文正文、配套材料与验收图表
+  materials/                    论文事实、提纲、实验记录和图表依据
+docs/                           项目文档
+  audits/                       历史项目审计
+  evidence/                     验收截图、检查记录和测量日志
+docker-compose.yml              MySQL/Redis/监控等服务编排
+start.ps1                       Windows 启动入口
 ```
 
----
+## 在线预测链
 
-## 三、数据处理
-
-6 步离线管道（脚本已归档，产物在 `processed/`）：
-1. **加载**：3 年 Excel 合并（26,304 行）
-2. **清洗**：类型统一、夏令时处理、异常检测
-3. **时间特征**：小时/星期/年积日正余弦编码
-4. **特征工程**：滞后/滚动/气象衍生（38 特征 + 1 目标）
-5. **划分**：按时间顺序 train/val/test + MinMaxScaler（仅训练集 fit）
-6. **序列化**：168 步滑动窗口 → `step6_sequences.pkl`
-
-关键决策：
-- 时间序列**按序划分**，禁止随机打乱（防泄漏）
-- Scaler 只在训练集 fit；滞后特征用 `shift()`（防泄漏）
-- 目标列：`System_Load`（MW）
-
----
-
-## 四、模型架构与训练结果
-
-### 4.1 模型架构（`backend/models/four_models.py`）
-
-| 模型 | 结构要点 | 参数量 |
-|------|----------|--------|
-| EnhancedLSTM | 3 层 LSTM(128) + 注意力 + 残差 | ~1.1M |
-| BiGRU | 3 层 BiGRU(128) + 注意力 | ~1.4M |
-| DeepTCN | 4 层因果膨胀卷积 [64,128,64,32] | ~0.16M |
-| SpatialTransformer | 4 层 Transformer(d_model=128) + 位置编码 | ~2.3M |
-
-统一输入：`(batch, 168, 38)`，输出 `(batch, 24)`。
-
-### 4.2 训练配置
-
-| 参数 | 值 | 说明 |
-|------|-----|------|
-| HORIZON | 24 小时 | 预测步长 |
-| LOOKBACK | 168 小时 | 输入窗口（7 天） |
-| BATCH_SIZE | 64 | 批大小 |
-| LEARNING_RATE | 1e-3（Transformer 5e-4） | 初始学习率 |
-| PATIENCE | 10 | 早停 |
-| LOSS | Huber | 对异常值鲁棒 |
-| 调度 | ReduceLROnPlateau | 验证损失平台期降 LR |
-
-### 4.3 性能指标（测试集，真实口径）
-
-> 指标在**反归一化后的真实 MW 单位**计算（2017 个测试序列），MAPE 使用 `|y_true|>1` 掩码防除零。
-> 由 `backend/scripts/recompute_final_metrics.py` 生成，数据见 `backend/models/models/final_results.json`。
-
-| 模型 | MAPE (%) | RMSE (MW) | R² | MAE (MW) |
-|------|----------|-----------|-----|----------|
-| EnhancedLSTM | 7.58 | 1244.7 | 0.680 | 1020.4 |
-| BiGRU | 10.28 | 1587.2 | 0.480 | 1337.3 |
-| SpatialTransformer | **4.43** | **762.6** | **0.880** | **586.1** |
-| DeepTCN | 10.41 | 1653.8 | 0.436 | 1397.7 |
-| **集成模型** | **7.41** | **1176.6** | **0.714** | **986.6** |
-
----
-
-## 五、实时预测系统
-
-### 5.1 系统架构
-
-```
-Open-Meteo API ──→ weather_validator ──→ feature_generator(38维)
-      ↓                                       ↓
-历史负荷(MySQL) ─→ HistoricalLoadProvider ─→ normalization_adapter
-                                               ↓
-                                        build_sequence(168,38)
-                                               ↓
-                              4 模型集成推理 → inverse_transform → MW
-                                               ↓
-                      光伏ML预测/物理回退 + 风电估算 + 净负荷
-                                               ↓
-                                    响应 + 入库 load_predictions
+```text
+React 前端
+  -> FastAPI /api/prediction/load
+  -> Open-Meteo 气象 + ISO-NE 历史负荷/电价
+  -> TensorFlow 实时特征适配器
+  -> 独立负荷模型 + 独立电价模型 + 光伏模型
+  -> 反归一化、净负荷计算
+  -> API 返回并按业务逻辑入库
 ```
 
-### 5.2 API 端点
+生产模式要求三个模型均成功加载，且实时特征字段、顺序、窗口长度与训练契约完全一致。
 
-| 端点 | 说明 | 认证 |
-|------|------|------|
-| `POST /api/prediction/load` | 24 小时负荷预测 | 需 JWT |
-| `POST /api/prediction/batch` | 批量预测 | 需 JWT |
-| `GET /api/prediction/history` | 历史预测查询 | 需 JWT |
-| `GET /api/weather/current` | 当前气象 | 公开 |
-| `GET /api/solar-generation` | 光伏 ML 预测 | 需 JWT |
-| `GET /api/wind-generation` | 风电估算 | 需 JWT |
-| `GET /api/analytics/*` | 准确性/漂移/趋势分析 | 需 JWT |
-| `GET /api/system/status` | 系统状态 | 公开 |
-| `GET /api/system/metrics` | 监控指标 | 需 JWT |
-| `POST /api/auth/*` | 注册/登录/刷新 | 公开（登录） |
-| `GET /api/health` | 健康检查 | 公开 |
-
-> **数据真实性说明**：`load_predictions.actual_load_mw` 仅由真实数据源写入。
-> 项目已移除所有"预测值+噪声伪造实际值"的逻辑；在接入真实实际负荷数据前，
-> 准确性统计端点返回空数据而非伪造值。
-
-### 5.3 认证
-
-- JWT（access 30min / refresh 7天），密钥由环境变量 `AUTH_JWT_SECRET_KEY` 提供
-- 中间件白名单：文档、健康检查、登录注册、天气当前值、系统状态公开，其余需认证
-- RBAC：系统管理员/普通用户角色，路由级权限校验
-
----
-
-## 六、使用与部署
-
-### 6.1 一键启动（Windows）
+## 启动与验证
 
 ```powershell
 .\start.ps1
-```
-
-### 6.2 手动启动
-
-```bash
-# 后端（backend 目录）
-cd backend
-pip install -r requirements.txt
-python -m uvicorn realtime_api.app:app --host 0.0.0.0 --port 8000 --reload
-
-# 前端（frontend 目录）
+python backend/scripts/check_runtime.py
+python -m pytest backend/tests
 cd frontend
-npm install
-npm run dev   # http://localhost:3000
+npm run build
 ```
 
-### 6.3 环境变量（`.env`，参见 `.env.example`）
+前端默认 `http://localhost:3000`，后端默认 `http://localhost:8000`。数据库、JWT 等敏感配置通过 `.env` 提供。
 
-| 变量 | 说明 |
-|------|------|
-| `MYSQL_HOST/PORT/DATABASE/USER/PASSWORD` | MySQL 连接 |
-| `AUTH_JWT_SECRET_KEY` | JWT 密钥（生产必须强随机） |
-| `SYSTEM_ENVIRONMENT` | development / production |
-
-### 6.4 测试
-
-```bash
-cd backend
-pip install pytest pytest-cov pytest-asyncio pytest-mock
-python -m pytest tests/
-```
-
-### 6.5 Docker 全栈
-
-```bash
-docker-compose up -d
-# API: http://localhost:8000  Grafana: http://localhost:3000  Prometheus: http://localhost:9090
-```
-
----
-
-## 七、训练输出
-
-- **模型权重**：`backend/models/models/{enhancedlstm,bigru,deeptcn,spatialtransformer}_best_model.pth`
-- **真实指标**：`backend/models/models/final_results.json`（反归一化 MW 口径）
-- **重算命令**：`cd backend && python scripts/recompute_final_metrics.py`
-- **重训命令**：`cd backend && python train_four_models.py`
-
----
-
-## 八、已知限制
-
-- 预测准确性统计依赖真实 `actual_load_mw` 数据接入（当前空缺）
-- 登录页 HUD 为纯装饰演示动画（已标注 DEMO）
-- 本机 Windows 下 coverage 统计不可用（coverage 库环境问题），CI（Ubuntu）正常
+禁止用文件是否存在代替模型验收；至少要同时验证权重可加载、输入/输出 Shape 正确、在线特征可生成、预测接口可返回 24 个点。

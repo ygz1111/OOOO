@@ -24,10 +24,8 @@ export default defineConfig({
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           // 图表库 — 体积大，独立拆分
           'vendor-recharts': ['recharts'],
-          // MUI — 体积大，独立拆分
-          'vendor-mui': ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled'],
           // 工具库
-          'vendor-utils': ['axios', 'date-fns', 'lucide-react', 'clsx'],
+          'vendor-utils': ['axios', 'date-fns', 'lucide-react'],
         },
       },
     },
@@ -48,12 +46,6 @@ export default defineConfig({
       'recharts',
       'date-fns',
       'lucide-react',
-      // MUI + Emotion 依赖链包含 CJS 模块（如 hoist-non-react-statics），
-      // 必须由 Vite 预构建统一转换，否则 dev server 报 export default 错误
-      '@mui/material',
-      '@mui/icons-material',
-      '@emotion/react',
-      '@emotion/styled',
     ],
   },
 })

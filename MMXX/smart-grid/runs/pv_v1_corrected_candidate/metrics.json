@@ -1,0 +1,20 @@
+{
+ "epochs_done": 100,
+ "seed": 20260911,
+ "solar_geometry": "noaa_local_v2",
+ "norm_mean": 0.14460554718971252,
+ "norm_std": 0.22322700917720795,
+ "val": {
+  "MAE": 0.01394,
+  "RMSE": 0.03175,
+  "daytime_MAE": 0.03623,
+  "daytime_nMAE": 0.21829
+ },
+ "test": {
+  "MAE": 0.01932,
+  "RMSE": 0.04158,
+  "daytime_MAE": 0.04148,
+  "daytime_nMAE": 0.19042
+ },
+ "naive24_daytime_MAE": 0.10909
+}

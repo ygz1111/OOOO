@@ -1,0 +1,485 @@
+{
+  "created_at_utc": "2026-10-03T05:10:33.423985+00:00",
+  "framework": "2.16.1",
+  "visible_gpus": [],
+  "batch": 32,
+  "training_performed": false,
+  "production_assets_modified": false,
+  "limitations": [
+    "Overlapping offline 24h windows; not independent online samples",
+    "Frozen test contains only its existing seasonal dates",
+    "No production calibration enabled",
+    "PV reference is an estimate"
+  ],
+  "price": {
+    "split": {
+      "train_end": "2026-04-30 23:00:00",
+      "val": [
+        "2026-05-01 00:00:00",
+        "2026-06-30 23:00:00"
+      ],
+      "test": [
+        "2026-07-01 00:00:00",
+        "2026-08-01 00:00:00"
+      ]
+    },
+    "source_manifest": [
+      {
+        "path": "MMXX\\smart-grid\\data\\processed\\ca_features.parquet",
+        "bytes": 10264704,
+        "sha256": "cc07c82fa8210bf0687f81703e3772e37c82c4886af153fc7f430d3b53ae1da5"
+      },
+      {
+        "path": "MMXX\\smart-grid\\runs\\tf_split_v1\\metrics.json",
+        "bytes": 1327,
+        "sha256": "a7527af61b7a8111db21d34d2d0bbe4fbbd0e95d602eeb216a55744045ca4d31"
+      },
+      {
+        "path": "backend\\models\\tf_assets\\tf_split_v1\\price_scalers.json",
+        "bytes": 3105,
+        "sha256": "e305dd904fa11cbe6e759cabd4138905b46541f13a67eacfb0e5a19e2f04bb47"
+      },
+      {
+        "path": "backend\\models\\tf_assets\\tf_split_v1\\price_best.weights.h5",
+        "bytes": 5183568,
+        "sha256": "4472d2fe07b308f7f9483d782eb1e0d21ec1e70996edc3fa5a0841c0f9a8fe77"
+      }
+    ],
+    "time_definition": "ISO-NE hour-ending; source seq retains DST ordering",
+    "weather_scope": "Existing offline features; historical observed weather is not an issuance-time online forecast",
+    "calibration": {
+      "fit_windows": 1057,
+      "selection_windows": 361,
+      "embargoed_windows": 23,
+      "raw_selection": {
+        "points": 8664,
+        "coverage": 0.7207987072945522,
+        "mean_width_USD_MWh": 20.319389307271873,
+        "interval_score": 35.94928703757712,
+        "P50_MAE_USD_MWh": 7.691626347651363,
+        "P50_bias_USD_MWh": -2.190286364264171,
+        "negative_reference_points": 0
+      },
+      "candidates": [
+        {
+          "name": "global_offset",
+          "offsets_USD_MWh": {
+            "all": 6.224930643921297
+          },
+          "selection_metrics": {
+            "points": 8664,
+            "coverage": 0.9058171745152355,
+            "mean_width_USD_MWh": 32.76925059511447,
+            "interval_score": 38.39527865613213,
+            "P50_MAE_USD_MWh": 7.691626347651363,
+            "P50_bias_USD_MWh": -2.190286364264171,
+            "negative_reference_points": 0
+          },
+          "eligible_on_validation": false
+        },
+        {
+          "name": "lead_band_offsets",
+          "offsets_USD_MWh": {
+            "1-6h": 4.543675930748208,
+            "7-12h": 6.288952005872126,
+            "13-24h": 6.897468706255545
+          },
+          "selection_metrics": {
+            "points": 8664,
+            "coverage": 0.9042012927054478,
+            "mean_width_USD_MWh": 32.63317198183759,
+            "interval_score": 38.39028188034762,
+            "P50_MAE_USD_MWh": 7.691626347651363,
+            "P50_bias_USD_MWh": -2.190286364264171,
+            "negative_reference_points": 0
+          },
+          "eligible_on_validation": false
+        }
+      ],
+      "selected_candidate": null,
+      "selected_offsets_USD_MWh": null,
+      "selection_rule": "Both closer to 80% coverage and lower interval score on held-out validation; test not used",
+      "fit_target_local_range": [
+        "2026-05-01 00:00:00",
+        "2026-06-14 23:00:00"
+      ],
+      "selection_target_local_range": [
+        "2026-06-15 00:00:00",
+        "2026-06-30 23:00:00"
+      ]
+    },
+    "raw_test": {
+      "points": 17328,
+      "coverage": 0.6693213296398892,
+      "mean_width_USD_MWh": 30.39468576017239,
+      "interval_score": 66.44652652934832,
+      "P50_MAE_USD_MWh": 13.2657247764418,
+      "P50_bias_USD_MWh": -3.7130290972798954,
+      "negative_reference_points": 0
+    },
+    "test_by_lead": {
+      "1-6h": {
+        "points": 4332,
+        "coverage": 0.6999076638965835,
+        "mean_width_USD_MWh": 29.01709578351164,
+        "interval_score": 61.90947480619414,
+        "P50_MAE_USD_MWh": 12.429045726400117,
+        "P50_bias_USD_MWh": -3.906744402737458,
+        "negative_reference_points": 0
+      },
+      "7-12h": {
+        "points": 4332,
+        "coverage": 0.667590027700831,
+        "mean_width_USD_MWh": 30.68856616318715,
+        "interval_score": 68.22114034190761,
+        "P50_MAE_USD_MWh": 13.38145722577092,
+        "P50_bias_USD_MWh": -3.608036401138199,
+        "negative_reference_points": 0
+      },
+      "13-24h": {
+        "points": 8664,
+        "coverage": 0.6548938134810711,
+        "mean_width_USD_MWh": 30.936540546995392,
+        "interval_score": 67.82774548464577,
+        "P50_MAE_USD_MWh": 13.626198076798081,
+        "P50_bias_USD_MWh": -3.6686677926219633,
+        "negative_reference_points": 0
+      }
+    },
+    "production_enabled": false,
+    "candidate_test_diagnostics": [
+      {
+        "name": "global_offset",
+        "eligible_on_validation": false,
+        "test_metrics": {
+          "points": 17328,
+          "coverage": 0.8552631578947368,
+          "mean_width_USD_MWh": 42.84454704801499,
+          "interval_score": 65.23799119895693,
+          "P50_MAE_USD_MWh": 13.2657247764418,
+          "P50_bias_USD_MWh": -3.7130290972798954,
+          "negative_reference_points": 0
+        },
+        "use_for_selection": false
+      },
+      {
+        "name": "lead_band_offsets",
+        "eligible_on_validation": false,
+        "test_metrics": {
+          "points": 17328,
+          "coverage": 0.8524930747922438,
+          "mean_width_USD_MWh": 42.70846843473811,
+          "interval_score": 65.22583046710547,
+          "P50_MAE_USD_MWh": 13.2657247764418,
+          "P50_bias_USD_MWh": -3.7130290972798954,
+          "negative_reference_points": 0
+        },
+        "use_for_selection": false
+      }
+    ],
+    "selected_candidate_test": null
+  },
+  "elapsed_seconds": 22.92234899999994,
+  "load": {
+    "split": {
+      "train_end": "2026-04-30 23:00:00",
+      "val": [
+        "2026-05-01 00:00:00",
+        "2026-06-30 23:00:00"
+      ],
+      "test": [
+        "2026-07-01 00:00:00",
+        "2026-08-01 00:00:00"
+      ]
+    },
+    "source_manifest": [
+      {
+        "path": "MMXX\\smart-grid\\data\\processed\\ca_features.parquet",
+        "bytes": 10264704,
+        "sha256": "cc07c82fa8210bf0687f81703e3772e37c82c4886af153fc7f430d3b53ae1da5"
+      },
+      {
+        "path": "MMXX\\smart-grid\\runs\\tf_split_v1\\metrics.json",
+        "bytes": 1327,
+        "sha256": "a7527af61b7a8111db21d34d2d0bbe4fbbd0e95d602eeb216a55744045ca4d31"
+      },
+      {
+        "path": "backend\\models\\tf_assets\\tf_split_v1\\load_scalers.json",
+        "bytes": 2753,
+        "sha256": "430054bd6404ebd3a0376ac617db292c7c25853205251e47ceb42fa8a6b6aa26"
+      },
+      {
+        "path": "backend\\models\\tf_assets\\tf_split_v1\\load_best.weights.h5",
+        "bytes": 5139304,
+        "sha256": "d508237cb0285160d15170b2a78a5528d883e2860c947d3a542af46f5424ebd9"
+      }
+    ],
+    "time_definition": "ISO-NE hour-ending; source seq retains DST ordering",
+    "weather_scope": "Existing offline features; historical observed weather is not an issuance-time online forecast",
+    "overall_test": {
+      "points": 17328,
+      "MAE": 305.3964746736796,
+      "RMSE": 476.1399114064027,
+      "bias": 91.49198770674631,
+      "WAPE_pct": 2.0322762413353823
+    },
+    "high_load_threshold_MW_fitted_train_only": 14857.81982421875,
+    "groups": {
+      "high_load_train_p75": {
+        "points": 8274,
+        "MAE": 404.0308212119414,
+        "RMSE": 611.9997207867085,
+        "bias": 69.78275729060594,
+        "WAPE_pct": 2.286073089752861
+      },
+      "hot_ge_86F": {
+        "points": 1182,
+        "MAE": 733.6492306335048,
+        "RMSE": 947.8289025302978,
+        "bias": -94.4960327386277,
+        "WAPE_pct": 3.357354813405962
+      },
+      "cold_le_32F": {
+        "points": 0,
+        "MAE": null,
+        "RMSE": null,
+        "bias": null,
+        "WAPE_pct": null
+      },
+      "holiday": {
+        "points": 576,
+        "MAE": 538.1464845715719,
+        "RMSE": 654.7836881038269,
+        "bias": -170.9843357180711,
+        "WAPE_pct": 2.6846762872089274
+      },
+      "non_holiday": {
+        "points": 16752,
+        "MAE": 297.39360900383815,
+        "RMSE": 468.78837473797824,
+        "bias": 100.51696157808672,
+        "WAPE_pct": 2.002006362566765
+      }
+    },
+    "legacy_test_p75_peak_MAE_MW": 567.1841191603235,
+    "test_by_lead": {
+      "1-6h": {
+        "points": 4332,
+        "MAE": 281.2922434245864,
+        "RMSE": 448.7925634919025,
+        "bias": 83.30592997970956,
+        "WAPE_pct": 1.868352788497364
+      },
+      "7-12h": {
+        "points": 4332,
+        "MAE": 313.049225295094,
+        "RMSE": 478.7021702194702,
+        "bias": 96.66151362188616,
+        "WAPE_pct": 2.0808147706005995
+      },
+      "13-24h": {
+        "points": 8664,
+        "MAE": 313.6222149875192,
+        "RMSE": 487.98889747509827,
+        "bias": 93.00025361269476,
+        "WAPE_pct": 2.0901831439885803
+      }
+    }
+  },
+  "pv": {
+    "source_manifest": [
+      {
+        "path": "MMXX\\smart-grid\\data\\processed\\pv_v2_features.parquet",
+        "bytes": 1374044,
+        "sha256": "73bc07d8d17a2669f99357ea432f0eb3669740e8dda3af05abf34018f36c4768"
+      },
+      {
+        "path": "backend\\models\\tf_assets\\pv_v2\\metadata.json",
+        "bytes": 7681,
+        "sha256": "7c72bf05b56417d7cd1a79040d618efe48660cf25d79c0e68711f6b70f6adfcb"
+      },
+      {
+        "path": "backend\\models\\tf_assets\\pv_v2\\pv_v2_best.weights.h5",
+        "bytes": 1073040,
+        "sha256": "84d9e4049b03eccf5059ac409f0b070f62d17003da8a33a4ca1c1c6620313f80"
+      }
+    ],
+    "reference_kind": "ISO-NE estimated BTM PV, not measured PV truth",
+    "weather_scope": "Open-Meteo day-1 forecast feature table; not a fully replayed issuance-specific online record",
+    "time_definition": "PV hour-starting; seq used within each 24-hour forecast window",
+    "partitions": {
+      "val": {
+        "all": {
+          "points": 25920,
+          "MAE": 200.0082407188268,
+          "RMSE": 371.59573999345116,
+          "bias": -3.721732337852563,
+          "WAPE_pct": 11.272692451672677
+        },
+        "daylight": {
+          "points": 16033,
+          "MAE": 322.4406390630985,
+          "RMSE": 472.44858387854777,
+          "bias": -5.110987891461677,
+          "WAPE_pct": 11.244664549396115
+        },
+        "24h_window_energy_relative_error_pct": 8.439503561187628,
+        "24h_window_peak_abs_error_MW": 399.68310799304356,
+        "24h_window_peak_time_abs_error_hours": 1.2425925925925927,
+        "cloud_groups_daylight": {
+          "cloud_le_33pct": {
+            "points": 5843,
+            "MAE": 225.19156055645215,
+            "RMSE": 320.6845105847486,
+            "bias": 34.73216227123883,
+            "WAPE_pct": 6.689011449269609
+          },
+          "cloud_33_to_66pct": {
+            "points": 4724,
+            "MAE": 314.80191181650144,
+            "RMSE": 414.46322078319474,
+            "bias": 30.672369854685044,
+            "WAPE_pct": 10.402820209516209
+          },
+          "cloud_gt_66pct": {
+            "points": 5466,
+            "MAE": 432.99894737397653,
+            "RMSE": 629.5438867063204,
+            "bias": -78.62802199198421,
+            "WAPE_pct": 19.709579365230976
+          }
+        },
+        "by_lead": {
+          "1-6h": {
+            "points": 4013,
+            "MAE": 318.61488235946393,
+            "RMSE": 466.13279522100675,
+            "bias": 32.33949124649699,
+            "WAPE_pct": 11.111969760360992
+          },
+          "7-12h": {
+            "points": 4008,
+            "MAE": 325.48029441287815,
+            "RMSE": 476.3077360402746,
+            "bias": -11.306465276463058,
+            "WAPE_pct": 11.338847482860563
+          },
+          "13-24h": {
+            "points": 8012,
+            "MAE": 322.8362734876827,
+            "RMSE": 473.65089767829943,
+            "bias": -20.769662307530382,
+            "WAPE_pct": 11.263968896438785
+          }
+        },
+        "complete_calendar_day_count": 45,
+        "complete_calendar_days": {
+          "all": {
+            "points": 1080,
+            "MAE": 204.10367776435098,
+            "RMSE": 378.1576796129375,
+            "bias": -3.8919803283832626,
+            "WAPE_pct": 11.521137854959202
+          },
+          "daylight": {
+            "points": 667,
+            "MAE": 329.57492051798965,
+            "RMSE": 481.1677497176769,
+            "bias": -5.394061101430175,
+            "WAPE_pct": 11.493127931159282
+          },
+          "24h_window_energy_relative_error_pct": 9.20124991726072,
+          "24h_window_peak_abs_error_MW": 418.4747504340278,
+          "24h_window_peak_time_abs_error_hours": 0.6444444444444445
+        },
+        "windows": 1080
+      },
+      "test": {
+        "all": {
+          "points": 14400,
+          "MAE": 236.18336987654368,
+          "RMSE": 474.2499951108346,
+          "bias": -100.15814313835568,
+          "WAPE_pct": 17.07434797782891
+        },
+        "daylight": {
+          "points": 8233,
+          "MAE": 412.4804781030279,
+          "RMSE": 627.1846336685016,
+          "bias": -174.56437643536034,
+          "WAPE_pct": 17.05315737577221
+        },
+        "24h_window_energy_relative_error_pct": 14.832338836716561,
+        "24h_window_peak_abs_error_MW": 610.2447436523438,
+        "24h_window_peak_time_abs_error_hours": 1.4383333333333332,
+        "cloud_groups_daylight": {
+          "cloud_le_33pct": {
+            "points": 1687,
+            "MAE": 173.51436656144642,
+            "RMSE": 237.23268792964737,
+            "bias": -37.449395741099195,
+            "WAPE_pct": 5.807646980939262
+          },
+          "cloud_33_to_66pct": {
+            "points": 2349,
+            "MAE": 451.5127012789529,
+            "RMSE": 629.2700610563569,
+            "bias": -210.87874513628535,
+            "WAPE_pct": 14.310024785155646
+          },
+          "cloud_gt_66pct": {
+            "points": 4197,
+            "MAE": 486.68804015458863,
+            "RMSE": 726.2128610421092,
+            "bias": -209.35363551392737,
+            "WAPE_pct": 27.373471209527516
+          }
+        },
+        "by_lead": {
+          "1-6h": {
+            "points": 2064,
+            "MAE": 410.15119622659313,
+            "RMSE": 607.381667789737,
+            "bias": -126.21025121858878,
+            "WAPE_pct": 16.9632613989349
+          },
+          "7-12h": {
+            "points": 2058,
+            "MAE": 414.66708255084467,
+            "RMSE": 637.424827273473,
+            "bias": -189.64139734397327,
+            "WAPE_pct": 17.136850593449218
+          },
+          "13-24h": {
+            "points": 4111,
+            "MAE": 412.55530316733217,
+            "RMSE": 631.7850530969672,
+            "bias": -191.29373800614394,
+            "WAPE_pct": 17.056360314745113
+          }
+        },
+        "complete_calendar_day_count": 25,
+        "complete_calendar_days": {
+          "all": {
+            "points": 600,
+            "MAE": 235.9475964906481,
+            "RMSE": 481.8707459269835,
+            "bias": -108.56862000783285,
+            "WAPE_pct": 17.079947975952326
+          },
+          "daylight": {
+            "points": 342,
+            "MAE": 413.2869626541584,
+            "RMSE": 638.232215193113,
+            "bias": -189.81507408781593,
+            "WAPE_pct": 17.057490961856956
+          },
+          "24h_window_energy_relative_error_pct": 15.524385448542018,
+          "24h_window_peak_abs_error_MW": 633.8880305989584,
+          "24h_window_peak_time_abs_error_hours": 0.92
+        },
+        "windows": 600
+      }
+    }
+  }
+}
